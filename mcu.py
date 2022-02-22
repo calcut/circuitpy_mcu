@@ -14,9 +14,6 @@ import adafruit_logging as logging
 import traceback
 # from adafruit_logging import LoggingHandler
 
-# Known display types
-from circuitpy_mcu.display import LCD_16x2, LCD_20x4
-
 # On-board hardware
 import board
 import neopixel
@@ -358,6 +355,9 @@ class Mcu():
         return string
 
     def attach_display(self, display_object):
+        # Import Known display types
+        from circuitpy_mcu.display import LCD_16x2, LCD_20x4
+
         self.display = display_object
 
     def display_text(self, text):
