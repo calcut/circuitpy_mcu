@@ -14,6 +14,9 @@ import adafruit_logging as logging
 import traceback
 # from adafruit_logging import LoggingHandler
 
+# Known display types
+from circuitpy_mcu.display import LCD_16x2, LCD_20x4
+
 # On-board hardware
 import board
 import neopixel
@@ -43,7 +46,7 @@ __version__ = "0.0.0-auto.0"
 __repo__ = "https://github.com/calcut/circuitpy-heatpump"
 
 class Mcu():
-    def __init__(self, i2c_freq=50000, i2c_lookup=None, display="Sparkfun_LCD" ):
+    def __init__(self, i2c_freq=50000, i2c_lookup=None):
 
         # Initialise some key variables
         self.wifi_connected = False
@@ -89,13 +92,8 @@ class Mcu():
         self.led.direction = digitalio.Direction.OUTPUT
         self.led.value = False
 
-        if display == "Sparkfun_LCD":
-            self.display = qwiic_serlcd.QwiicSerlcd(i2c_bus=self.i2c)
-            time.sleep(0.5)  #May be needed for 20x4 display??
-            self.display.setFastBacklight(255, 255, 255)
-            self.display.clearScreen()
-        else: 
-            self.display = display
+        self.display = None
+        self.serial_buffer = ''
 
     def log_exception(self, e):
         # formats an exception to print to log as an error,
@@ -188,8 +186,10 @@ class Mcu():
         while True:
             try:
                 self.log.info(f'Wifi: {ssid}')
+                self.display_text(f'Wifi: {ssid}')
                 wifi.radio.connect(ssid, password)
                 self.log.info("Wifi Connected")
+                self.display_text("Wifi Connected")
                 self.pixel[0] = self.pixel.CYAN
                 self.wifi_connected = True
                 self.watchdog.feed()
@@ -197,6 +197,7 @@ class Mcu():
             except ConnectionError as e:
                 self.log_exception(e)
                 self.log.error(f"{ssid} connection failed")
+                self.display_text("Connection Failed")
                 network_list = list(secrets['networks'])
                 ssid = network_list[i]
                 password = secrets["networks"][network_list[i]]
@@ -234,6 +235,7 @@ class Mcu():
 
         # Connect to Adafruit IO
         self.log.info("Adafruit IO...")
+        self.display_text("Adafruit IO...")
         try:
             self.io.connect()
         except Exception as e:
@@ -245,7 +247,11 @@ class Mcu():
         # Subscribe to a feed from Adafruit IO
         self.io.subscribe(feed)
         # Request latest value from the feed
-        self.io.get(feed)
+        try:
+            self.io.get(feed)
+        except MemoryError as e:
+                # https://github.com/adafruit/Adafruit_CircuitPython_MiniMQTT/issues/101
+                self.log.warning("MemoryError: memory allocation failed, ignoring")
 
     def unsubscribe(self, feed):
         # an unsubscribe method that mirrors the subscribe one
@@ -258,6 +264,7 @@ class Mcu():
         # passed to this function is the Adafruit IO MQTT client so you can make
         # calls against it easily.
         self.log.info("Connected to AIO")
+        self.display_text("Connected to AIO")
         self.aio_connected = True
         self.pixel[0] = self.pixel.MAGENTA
         self.io.subscribe_to_time("seconds")
@@ -266,18 +273,18 @@ class Mcu():
 
     def aio_subscribe_callback(self, client, userdata, topic, granted_qos):
         # This method is called when the client subscribes to a new feed.
-        print("Subscribed to {0} with QOS level {1}".format(topic, granted_qos))
+        self.log.info("Subscribed to {0} with QOS level {1}".format(topic, granted_qos))
 
 
     def aio_unsubscribe_callback(self, client, userdata, topic, pid):
         # This method is called when the client unsubscribes from a feed.
-        print("Unsubscribed from {0} with PID {1}".format(topic, pid))
+        self.log.info("Unsubscribed from {0} with PID {1}".format(topic, pid))
 
 
     # pylint: disable=unused-argument
     def aio_disconnected_callback(self, client):
         # Disconnected function will be called when the client disconnects.
-        print("Disconnected from Adafruit IO!")
+        self.log.info("Disconnected from Adafruit IO!")
         self.aio_connected = False
 
 
@@ -285,12 +292,11 @@ class Mcu():
         # Message function will be called when a subscribed feed has a new value.
         # The feed_id parameter identifies the feed, and the payload parameter has
         # the new value.
-        # print("Feed {0} received new value: {1}".format(feed_id, payload))
         if feed_id == 'seconds':
             self.rtc.datetime = time.localtime(int(payload))
-            # print(f'RTC syncronised')
+            # self.log.debug(f'RTC syncronised')
         else:
-            print(f"{feed_id} = {payload}")
+            self.log.info(f"{feed_id} = {payload}")
             self.feeds[feed_id] = payload
 
     def aio_receive(self):
@@ -341,7 +347,7 @@ class Mcu():
                         self.aio_interval_minimum = min_interval
 
                 else:
-                    self.log.debug(f"Did not publish, aio_interval_minimum set to {self.aio_interval_minimum}s"
+                    self.log.info(f"Did not publish, aio_interval_minimum set to {self.aio_interval_minimum}s"
                                     +f" Time remaining: {int(self.aio_interval_minimum - (time.monotonic() - self.timer_publish))}s")
             else:
                 self.log.warning(f'Did not publish, throttled flag = {self.aio_throttled}')
@@ -351,13 +357,24 @@ class Mcu():
         string = f'{t.tm_year}-{t.tm_mon:02}-{t.tm_mday:02} {t.tm_hour:02}:{t.tm_min:02}:{t.tm_sec:02}'
         return string
 
+    def attach_display(self, display_object):
+        self.display = display_object
+
+    def display_text(self, text):
+        if self.display:
+            if isinstance(self.display, LCD_16x2):
+                self.display.clear()
+                self.display.write(text)
+            elif isinstance(self.display, LCD_20x4):
+                self.display.clear()
+                self.display.write(text)
+            else:
+                self.log.error("Unknown Display")
+
 
     def read_serial(self, send_to=None):
         # This is likely broken, it was intended to be used with asyncio
         serial = usb_cdc.console
-        buffer = ''
-
-
         text = ''
         available = serial.in_waiting
         while available:
@@ -366,13 +383,23 @@ class Mcu():
             print(text, end='')
             available = serial.in_waiting
 
-        buffer += text
-        if buffer.endswith("\n"):
-            input_line = buffer[:-1]
+        # Sort out line endings
+        if text.endswith("\r"):
+            text = text[:-1]+"\n"
+        if text.endswith("\r\n"):
+            text = text[:-2]+"\n"
+
+        if "\r" in text:
+            self.log.debug(f'carriage return \r found in {bytearray(text)}')
+
+        self.serial_buffer += text
+        if self.serial_buffer.endswith("\n"):
+            input_line = self.serial_buffer[:-1]
             # clear buffer
-            buffer = ""
+            self.serial_buffer = ""
             # handle input
             if send_to:
+                # Call the funciton provided with input_line as argument
                 send_to(input_line)
             else:
                 print(f'you typed: {input_line}')
