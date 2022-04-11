@@ -304,7 +304,7 @@ class Mcu():
                     self.aio_throttled = False
                     self.log.warning(f'AIO throttle flag released. minimum interval currently {self.aio_interval_minimum}')
             try:
-                self.io.loop(timeout=0.01) #Is this too short a timeout??
+                self.io.loop(timeout=0.1) #Is this too short a timeout??
             except AdafruitIO_ThrottleError as e:
                 self.log_exception(e)
                 self.aio_interval_minimum += 1
