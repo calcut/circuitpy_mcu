@@ -29,7 +29,6 @@ import adafruit_requests
 import adafruit_minimqtt.adafruit_minimqtt as MQTT
 from adafruit_io.adafruit_io import IO_MQTT
 from adafruit_io.adafruit_io_errors import AdafruitIO_ThrottleError
-import json
 
 try:
     from secrets import secrets
@@ -37,8 +36,6 @@ except ImportError:
     print("WiFi secrets are kept in secrets.py, please add them there!")
     raise
 
-# External hardware
-# import qwiic_serlcd
 
 
 __version__ = "0.0.0-auto.0"
@@ -71,7 +68,7 @@ class Mcu():
 
         # Pull the I2C power pin low to enable I2C power
         self.log.info('Powering up I2C bus')
-        self.i2c_power = digitalio.DigitalInOut(board.I2C_POWER_INVERTED)
+        self.i2c_power = digitalio.DigitalInOut(board.I2C_POWER)
         self.i2c_power_on()
         self.i2c = busio.I2C(board.SCL, board.SDA, frequency=i2c_freq)
 
@@ -110,9 +107,18 @@ class Mcu():
         self.log.info(f'Watchdog enabled with timeout = {self.watchdog.timeout}s')
 
     def i2c_power_on(self):
-        self.i2c_power.switch_to_output(value=False)
+        # Due to board rev B/C differences, need to read the initial state
+        # https://learn.adafruit.com/adafruit-esp32-s2-feather/i2c-power-management
+        self.i2c_power.switch_to_input()
+        time.sleep(0.01)  # wait for default value to settle
+        rest_level = self.i2c_power.value
+
+        self.i2c_power.switch_to_output(value=(not rest_level))
         time.sleep(1)
 
+    def i2c_power_off(self):
+        self.i2c_power.switch_to_input()
+        time.sleep(1)
 
     def i2c_power_off(self):
         self.i2c_power.switch_to_output(value=True)
@@ -206,40 +212,9 @@ class Mcu():
                 if i >= len(secrets['networks']):
                     i=0
 
-        # Create a socket pool, ssl context and requests object
         self.pool = socketpool.SocketPool(wifi.radio)
-        self.ssl_context=ssl.create_default_context()
-        print(dir(self.ssl_context))
-        # self.ssl_context.load_verify_locations(cadata=CA_STRING)
-        self.requests = adafruit_requests.Session(self.pool, self.ssl_context)
+        self.requests = adafruit_requests.Session(self.pool, ssl.create_default_context())
 
-        # headers = {
-        # # 'Authorization': f'token {token}',   # Only need token for private repos
-        # 'Accept': 'application/vnd.github.v3.raw'  #Ensures raw text is fetched (rather than encoded) 
-        # }
-
-        # url = f'https://api.github.com/repos/calcut/circuitpy_heating_relay/releases/latest'
-        url =  'https://raw.githubusercontent.com/calcut/circuitpy_heating_relay/main/heating_relay.py'
-        # latest = self.requests.get(url, headers=headers)
-        latest = self.requests.get(url)
-        print(latest.content)
-    
-    # def debug_get(self):
-    #     url =  'https://raw.githubusercontent.com/calcut/circuitpy_heating_relay/main/heating_relay.py'
-    #     # latest = self.requests.get(url, headers=headers)
-    #     latest = self.requests.get(url)
-    #     print(latest.content)
-    # def fetch_ota():
-    #         user = secrets['git_user']
-    #         repo = secrets['git_repo']
-    #         files = secrets ['ota_files']
-    #         self.log.info(f'trying to fetch OTA: {user} {repo} {files}')
-            # ota_success = self.get_latest_release_ota(user, repo, files)  #
-            # Think this needs to NOT be in a callback for MQTT
-            # if ota_success:
-            #     self.log.info("OTA Success")
-            # else:
-            #     self.log.info("OTA did not succeed")    
 
     def aio_setup(self, log_feed=None):
 
@@ -253,7 +228,7 @@ class Mcu():
             # socket_pool=self.pool,
             # ssl_context=self.ssl_context,
             socket_pool=self.pool,
-            ssl_context=self.ssl_context,
+            ssl_context=ssl.create_default_context(),
         )
 
         # self.mqtt_client.connect()
@@ -327,6 +302,7 @@ class Mcu():
         # Message function will be called when a subscribed feed has a new value.
         # The feed_id parameter identifies the feed, and the payload parameter has
         # the new value.
+        self.got_mqtt_response = True
         if feed_id == 'seconds':
             self.rtc.datetime = time.localtime(int(payload))
             # self.log.debug(f'RTC syncronised')
@@ -345,22 +321,26 @@ class Mcu():
                     # Reset the throttled flag if it has been over 30s
                     self.aio_throttled = False
                     self.log.warning(f'AIO throttle flag released. minimum interval currently {self.aio_interval_minimum}')
-            try:
-                self.io.loop(timeout=0.1) #Is this too short a timeout??
-            except AdafruitIO_ThrottleError as e:
-                self.log_exception(e)
-                self.aio_interval_minimum += 1
-                self.aio_throttled = True
-                self.timer_throttled = time.monotonic()
-                self.log.warning(f'AIO Throttled, increasing publish interval to {self.aio_interval_minimum}')
-            except MemoryError as e:
-                # self.log_exception(e)
-                # https://github.com/adafruit/Adafruit_CircuitPython_MiniMQTT/issues/101
-                self.log.warning(f"{e}, ignoring")
-            except Exception as e:
-                self.log_exception(e)
-                self.log.warning(f'AIO receive error, trying longer timeout')
-                self.io.loop(timeout=0.5) 
+            self.got_mqtt_response = True
+            while self.got_mqtt_response:
+                # https://github.com/adafruit/Adafruit_CircuitPython_MiniMQTT/issues/108
+                try:
+                    self.got_mqtt_response = False
+                    self.io.loop(timeout=0.5) #Is this too short a timeout??
+                except AdafruitIO_ThrottleError as e:
+                    self.log_exception(e)
+                    self.aio_interval_minimum += 1
+                    self.aio_throttled = True
+                    self.timer_throttled = time.monotonic()
+                    self.log.warning(f'AIO Throttled, increasing publish interval to {self.aio_interval_minimum}')
+                except MemoryError as e:
+                    # self.log_exception(e)
+                    # https://github.com/adafruit/Adafruit_CircuitPython_MiniMQTT/issues/101
+                    self.log.warning(f"{e}, ignoring")
+                except Exception as e:
+                    self.log_exception(e)
+                    self.log.warning(f'AIO receive error, trying longer timeout')
+                    self.io.loop(timeout=0.5) 
 
     def aio_send(self, feeds, location=None):
         if self.aio_connected:
@@ -378,6 +358,7 @@ class Mcu():
                     except Exception as e:
                         self.log_exception(e)
                         self.log.error(f"Error publishing data to AIO")
+                        raise
 
                     # Clamp the minimum interval based on number of feeds and a
                     # rate of 30 updates per minute for AIO free version.
@@ -448,60 +429,51 @@ class Mcu():
 
     def get_latest_release_ota(self, user=secrets['git_user'],
                                      repo=secrets['git_repo'],
-                                     files=secrets['ota_files']):
+                                     file=secrets['ota_file']):
+
+        if self.aio_connected:
+            # Have not figured out how to make this work when AIO is connected.
+            # All sorts of SSL related errors happen
+            self.io.disconnect()
+            self.aio_connected = False
 
         url_latest = f'https://api.github.com/repos/{user}/{repo}/releases/latest'
+
+        try:
+            print(f'trying to fetch {url_latest}')
+            release = self.requests.get(url_latest).json()
+            print(f'tag name = {release["tag_name"]}')
+            # content = self.requests.get(git_url).content
+        except KeyError as e:
+            print(e)
+            print(release)
+            return False
+        except Exception as e:
+            print(e)
+            return False
+
+        filename = f'ota_{file}'
+        url = f'https://raw.githubusercontent.com/{user}/{repo}/{release["tag_name"]}/{file}'
+        print(f'trying to fetch {url}')
+        try:
+            file = self.requests.get(url).content
+        except Exception as e:
+            print(e)
+            print(f'Could not get {url}')
+            return False
+
+        try:
+            with open(filename, 'w') as f:
+                f.write(file)
+                self.log.info(f'wrote {filename}')
+        except Exception as e:
+            self.log.warning(f'could not write {filename}, filesystem is probably Read Only')
+            return False
         
-        headers = {
-        # 'Authorization': f'token {token}',   # Only need token for private repos
-        'Accept': 'application/vnd.github.v3.raw'  #Ensures raw text is fetched (rather than encoded) 
-        }
-
-        # pool = socketpool.SocketPool(wifi.radio)
-        # requests = adafruit_requests.Session(pool, ssl.create_default_context())
-
-        # Log Time
-        start_time = time.monotonic()
-        print(url_latest)
-        while(True):
-            try:
-                print('trying to fetch url')
-                content = self.requests.get(url_latest).content
-                break
-            except RuntimeError as e:
-                print(e)
-                time.sleep(1)
-
-
-        print(content)
-
-        # time.sleep(2)
-        # # content = self.requests.get(url_latest, headers=headers).content
-        # release = json.loads(content)
-
-        # print(f"latest tag = {release['tag_name']}")
-
-        # for file in files:
-        #     filename = f'ota_{file}'
-        #     url = f'https://raw.githubusercontent.com/{user}/{repo}/{release["tag_name"]}/{file}'
-        #     print(url)
-        #     try:
-        #         file = self.requests.get(url).content
-        #     except:
-        #         self.log.error(f'Could not get {url}')
-        #         return False
-
-        #     try:
-        #         with open(filename, 'w') as f:
-        #             f.write(file)
-        #             self.log.info(f'wrote {filename}')
-        #     except Exception as e:
-        #         print(e)
-        #         self.log.warning(f'could not write {filename}')
-        #         return False
-
-        self.ota_requested = False
-        return True
+        self.log.warning(f'About to load new OTA file {filename}')
+        time.sleep(1)
+        supervisor.set_next_code_file(filename)
+        supervisor.reload()
 
 class McuLogHandler(logging.LoggingHandler):
 
