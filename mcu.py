@@ -35,6 +35,12 @@ except ImportError:
     print("WiFi secrets are kept in secrets.py, please add them there!")
     raise
 
+try:
+# Import Known display types
+    from circuitpy_mcu.display import LCD_16x2, LCD_20x4
+except:
+    pass
+
 # External hardware
 # import qwiic_serlcd
 
@@ -355,9 +361,6 @@ class Mcu():
         return string
 
     def attach_display(self, display_object):
-        # Import Known display types
-        from circuitpy_mcu.display import LCD_16x2, LCD_20x4
-
         self.display = display_object
 
     def display_text(self, text):
