@@ -168,3 +168,25 @@ class LCD_20x4(Sparkfun_SerLCD_I2C):
         self.set_cursor(10,3)
         self.write(f'{l[7]:>5}'[:5])
         self.write(f'{v[7]:<5}'[:5])
+
+    def show_data_long(self):            
+        l = self.labels
+        v = self.values
+
+        # prints labels and values, forcing 10 characters wide
+        self.set_cursor(0,0)
+        self.write(f'{l[0]:>10}'[:10])
+        self.write(f'{v[0]:<10}'[:10])
+
+        self.set_cursor(0,1)
+        self.write(f'{l[1]:>10}'[:10])
+        self.write(f'{v[1]:<10}'[:10])
+
+        self.set_cursor(0,2)
+        self.write(f'{l[2]:>10}'[:10])
+        self.write(f'{v[2]:<10}'[:10])
+
+        self.set_cursor(0,3)
+        self.write(f'{l[3]:>10}'[:10])
+        self.write(f'{v[3]:<10}'[:10])
+
