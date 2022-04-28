@@ -1,0 +1,7 @@
+
+# install all libs specified in a text file
+circup install -r ./circup_freeze.tx
+
+# clear the flash storage
+import storage
+storage.erase_filesystem()
