@@ -35,7 +35,7 @@ class DFRobot_PH():
             print("phdata.txt ERROR ! Please run DFRobot_PH_Reset")
             sys.exit(1)
 
-    def read_PH(self,voltage,temperature):
+    def read_PH(self,voltage,temperature=25):
         '''!
           @brief   Convert voltage to PH with temperature compensation.
           @note voltage to pH value, with temperature compensation
