@@ -36,10 +36,14 @@ except ImportError:
     print("WiFi secrets are kept in secrets.py, please add them there!")
     raise
 
-
+try:
+    # Import Known display types
+    from circuitpy_mcu.display import LCD_16x2, LCD_20x4
+except:
+    pass
 
 __version__ = "0.0.0-auto.0"
-__repo__ = "https://github.com/calcut/circuitpy-heatpump"
+__repo__ = "https://github.com/calcut/circuitpy-mcu"
 
 class Mcu():
     def __init__(self, i2c_freq=50000, i2c_lookup=None):
@@ -60,7 +64,8 @@ class Mcu():
         # Set up logging
         # See McuLogHandler for details
         self.log = logging.getLogger('mcu')
-        self.log.addHandler(McuLogHandler(self))
+        self.loghandler = McuLogHandler(self)
+        self.log.addHandler(self.loghandler)
         self.log.level = logging.INFO
 
         # Use a watchdog to detect if the code has got stuck anywhere
@@ -378,9 +383,6 @@ class Mcu():
         return string
 
     def attach_display(self, display_object):
-        # Import Known display types
-        from circuitpy_mcu.display import LCD_16x2, LCD_20x4
-
         self.display = display_object
 
     def display_text(self, text):
