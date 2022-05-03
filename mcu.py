@@ -20,6 +20,8 @@ import neopixel
 import busio
 import digitalio
 import analogio
+import adafruit_sdcard
+import storage
 
 # Networking
 import wifi
@@ -58,6 +60,10 @@ class Mcu():
         self.aio_throttled = False
         self.timer_publish = time.monotonic()
         self.timer_throttled = time.monotonic()
+        self.sdcard = None
+        self.display = None
+        self.serial_buffer = ''
+        self.ota_requested = False
 
         # Real Time Clock in ESP32-S2 can be used to track timestamps
         self.rtc = rtc.RTC()
@@ -94,9 +100,7 @@ class Mcu():
         self.led.direction = digitalio.Direction.OUTPUT
         self.led.value = False
 
-        self.display = None
-        self.serial_buffer = ''
-        self.ota_requested = False
+        
 
     def log_exception(self, e):
         # formats an exception to print to log as an error,
@@ -386,6 +390,13 @@ class Mcu():
     def attach_display(self, display_object):
         self.display = display_object
 
+    def attach_sd_card(self, cs=board.D10):
+        
+        spi = busio.SPI(board.SCK, MOSI=board.MOSI, MISO=board.MISO)
+        self.sdcard = adafruit_sdcard.SDCard(spi, cs)
+        vfs = storage.VfsFat(self.sdcard)
+        storage.mount(vfs, "/sd")
+
     def display_text(self, text):
         if self.display:
             if isinstance(self.display, LCD_16x2):
@@ -530,3 +541,19 @@ class McuLogHandler(logging.LoggingHandler):
             # print(f'FS not writable {self.format(level, msg)}')
             if e.args[0] == 28:  # If the file system is full...
                 print(f'Filesystem full')
+
+        # Print to SDCARD log.txt with timestamp 
+        # only works if attach_sd_card() function has been run.
+        if self._device.sdcard:
+            print('logging to SD card')
+            try:
+                with open('/sd/log.txt', 'a+') as f:
+                    ts = self._device.get_timestamp() #timestamp from the RTC
+                    if ts[0:4] == "2000":
+                        # if the time has not been set yet, just show the seconds
+                        ts = ts[-5:]
+                    text = f'{ts} {text}\r\n'
+                    f.write(text)
+            except OSError as e:
+                print(f'FS not writable {self.format(level, msg)}')
+
