@@ -12,6 +12,7 @@ import gc
 import usb_cdc
 import adafruit_logging as logging
 import traceback
+import os
 # from adafruit_logging import LoggingHandler
 
 # On-board hardware
@@ -293,13 +294,16 @@ class Mcu():
 
     def aio_subscribe_callback(self, client, userdata, topic, granted_qos):
         # This method is called when the client subscribes to a new feed.
-        self.log.info("Subscribed to {0} with QOS level {1}".format(topic, granted_qos))
+        print(f"Subscribed to {topic} with QOS level {granted_qos}")
+        # self.log.info(f"Subscribed to {topic} with QOS level {granted_qos}")
 
+        # Not using logger in this callback, as errors were seen eg.
+        # AdafruitIO_MQTTError: MQTT Error: Unable to connect to Adafruit IO.
+        # Possibly related to logging to SD card taking too long?
 
     def aio_unsubscribe_callback(self, client, userdata, topic, pid):
         # This method is called when the client unsubscribes from a feed.
-        self.log.info("Unsubscribed from {0} with PID {1}".format(topic, pid))
-
+        self.log.info(f"Unsubscribed from {topic} with PID {pid}")
 
     # pylint: disable=unused-argument
     def aio_disconnected_callback(self, client):
@@ -390,13 +394,54 @@ class Mcu():
     def attach_display(self, display_object):
         self.display = display_object
 
-    def attach_sd_card(self, cs_pin=board.D10):
+    def attach_sdcard(self, cs_pin=board.D10):
         
-        spi = busio.SPI(board.SCK, MOSI=board.MOSI, MISO=board.MISO)
-        cs = digitalio.DigitalInOut(cs_pin)
-        self.sdcard = adafruit_sdcard.SDCard(spi, cs)
-        vfs = storage.VfsFat(self.sdcard)
-        storage.mount(vfs, "/sd")
+        try:
+            spi = busio.SPI(board.SCK, MOSI=board.MOSI, MISO=board.MISO)
+            cs = digitalio.DigitalInOut(cs_pin)
+            self.sdcard = adafruit_sdcard.SDCard(spi, cs)
+            vfs = storage.VfsFat(self.sdcard)
+            storage.mount(vfs, "/sd")
+        except OSError:
+            self.sdcard = None
+            self.log.warning('SD Card not mounted')
+        except Exception as e:
+            self.sdcard = None
+            self.log_exception(e)
+
+    def archive_file(self, file, dir='/sd', archive_dir='/sd/archive'):
+
+        try:
+            list = os.listdir(dir)
+        except:
+            self.log.warning(f'{dir} directory not found')
+            return
+
+        if not file in list:
+            self.log.warning(f'{dir}/{file} file not found for archival')
+            return
+
+        try:
+            os.mkdir(archive_dir)
+        except:
+            # typically archive_dir already exists
+            pass
+
+        n=1
+        filepath = f'{dir}/{file}'
+        file = file[:-4] #Remove the extension, assumes 3 char extension
+        newfile = f'{file}_{n:02d}.txt'
+
+        while True:
+            if newfile in os.listdir(archive_dir):
+                n+=1
+                newfile = f'{file}_{n:02d}.txt'
+            else:
+                break
+
+        newpath = f'{archive_dir}/{newfile}'
+        os.rename(filepath, newpath)
+        self.log.info(f'{filepath} moved to {newpath}')
 
     def display_text(self, text):
         if self.display:
@@ -530,24 +575,24 @@ class McuLogHandler(logging.LoggingHandler):
 
         # Print to log.txt with timestamp 
         # only works if flash is set writable at boot time
-        try:
-            with open('log.txt', 'a+') as f:
-                ts = self._device.get_timestamp() #timestamp from the RTC
-                text = f'{ts} {text}\r\n'
-                f.write(text)
-        except OSError as e:
-            # print(f'FS not writable {self.format(level, msg)}')
-            if e.args[0] == 28:  # If the file system is full...
-                print(f'Filesystem full')
+        # try:
+        #     with open('log.txt', 'a+') as f:
+        #         ts = self._device.get_timestamp() #timestamp from the RTC
+        #         text = f'{ts} {text}\r\n'
+        #         f.write(text)
+        # except OSError as e:
+        #     print(f'FS not writable {self.format(level, msg)}')
+        #     if e.args[0] == 28:  # If the file system is full...
+        #         print(f'Filesystem full')
 
         # Print to SDCARD log.txt with timestamp 
         # only works if attach_sd_card() function has been run.
         if self._device.sdcard:
             try:
-                with open('/sd/log.txt', 'a+') as f:
+                with open('/sd/log.txt', 'a') as f:
                     ts = self._device.get_timestamp() #timestamp from the RTC
                     text = f'{ts} {text}\r\n'
                     f.write(text)
             except OSError as e:
-                print(f'FS not writable {self.format(level, msg)}')
+                print(f'SDCard FS not writable {e}')
 
