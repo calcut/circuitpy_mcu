@@ -390,9 +390,10 @@ class Mcu():
     def attach_display(self, display_object):
         self.display = display_object
 
-    def attach_sd_card(self, cs=board.D10):
+    def attach_sd_card(self, cs_pin=board.D10):
         
         spi = busio.SPI(board.SCK, MOSI=board.MOSI, MISO=board.MISO)
+        cs = digitalio.DigitalInOut(cs_pin)
         self.sdcard = adafruit_sdcard.SDCard(spi, cs)
         vfs = storage.VfsFat(self.sdcard)
         storage.mount(vfs, "/sd")
@@ -532,9 +533,6 @@ class McuLogHandler(logging.LoggingHandler):
         try:
             with open('log.txt', 'a+') as f:
                 ts = self._device.get_timestamp() #timestamp from the RTC
-                if ts[0:4] == "2000":
-                    # if the time has not been set yet, just show the seconds
-                    ts = ts[-5:]
                 text = f'{ts} {text}\r\n'
                 f.write(text)
         except OSError as e:
@@ -545,13 +543,9 @@ class McuLogHandler(logging.LoggingHandler):
         # Print to SDCARD log.txt with timestamp 
         # only works if attach_sd_card() function has been run.
         if self._device.sdcard:
-            print('logging to SD card')
             try:
                 with open('/sd/log.txt', 'a+') as f:
                     ts = self._device.get_timestamp() #timestamp from the RTC
-                    if ts[0:4] == "2000":
-                        # if the time has not been set yet, just show the seconds
-                        ts = ts[-5:]
                     text = f'{ts} {text}\r\n'
                     f.write(text)
             except OSError as e:
