@@ -365,7 +365,7 @@ class Mcu():
                     self.timer_publish = time.monotonic()
                     self.log.info(f"Publishing to AIO:")
                     try:
-                        for feed_id in feeds.keys():
+                        for feed_id in sorted(feeds):
                             self.io.publish(feed_id, str(feeds[feed_id]), metadata=location)
                             self.log.info(f"{feeds[feed_id]} --> {feed_id}")
                         if location:
