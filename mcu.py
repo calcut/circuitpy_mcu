@@ -404,6 +404,7 @@ class Mcu():
             self.sdcard = adafruit_sdcard.SDCard(spi, cs)
             vfs = storage.VfsFat(self.sdcard)
             storage.mount(vfs, "/sd")
+            self.display_text('SD Card Mounted')
         except OSError:
             self.sdcard = None
             self.log.warning('SD Card not mounted')
