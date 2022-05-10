@@ -132,7 +132,21 @@ class LCD_20x4(Sparkfun_SerLCD_I2C):
             self.write(f'{l[7]:>5}'[:5])
             self.write(f'{v[7]:<5}'[:5])
 
-    def show_data_20x4(self):            
+    def show_data_20x4(self, data_dict=None):            
+
+        if data_dict:
+            labels = sorted(data_dict)
+            self.labels=[]
+            self.values=[]
+
+            for label in labels:
+                self.labels.append(f'{label}=')
+                self.values.append(f'{data_dict[label]}')
+
+            while len(self.labels) < 8:
+                self.labels.append('')
+                self.values.append('')
+
         l = self.labels
         v = self.values
 
