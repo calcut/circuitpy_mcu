@@ -351,6 +351,8 @@ class Mcu():
                     # self.log_exception(e)
                     # https://github.com/adafruit/Adafruit_CircuitPython_MiniMQTT/issues/101
                     self.log.warning(f"{e}, ignoring")
+                except IndexError as e:
+                    self.log.warning(f'AIO feed limit may have been reached')
                 except Exception as e:
                     self.log_exception(e)
                     self.log.warning(f'AIO receive error, trying longer timeout')
