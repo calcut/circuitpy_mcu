@@ -488,7 +488,23 @@ class Mcu():
                 # Call the funciton provided with input_line as argument
                 send_to(input_line)
             else:
-                print(f'you typed: {input_line}')
+                self.log.debug(f'you typed: {input_line}')
+                return input_line
+    
+    def get_serial_line(self, valid_inputs=None):
+        
+        while True:
+            line = None
+            while not line:
+                self.watchdog.feed()
+                line = self.read_serial()
+
+            if valid_inputs:
+                if not line in valid_inputs:
+                    print(f'invalid input: {line}')
+                    continue
+            
+            return line
 
     def get_latest_release_ota(self, user=secrets['git_user'],
                                      repo=secrets['git_repo'],
