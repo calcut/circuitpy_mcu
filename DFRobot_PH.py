@@ -42,7 +42,8 @@ class DFRobot_PH():
             except OSError as e:
                 if e.errno==2:
                     self.log.warning(f'Calibration file not found: {calibration_file}')
-                    self.log.warning('Using default/uncalibrated settings')
+                    self.log.warning('Writing new file with default/uncalibrated settings')
+                    self.write_calibration_file()
                 else:
                     self.log.error(f'Could not read calibration data from {calibration_file}')
                     self.log.error(str(e))
@@ -56,7 +57,6 @@ class DFRobot_PH():
         intercept = 7.0 - slope*self.neutral_voltage
         ph        = slope*voltage+intercept
         round(ph,2)
-        # print(f'voltage = {voltage} adc = {self.adc} ph = {ph}')
 
         return ph
 
@@ -68,62 +68,37 @@ class DFRobot_PH():
         voltage = self.adc.voltage
         
         self.log.info('These ranges may need adjusted:')
-        self.log.info(f"Expected pH 7.0 range = 1.322 to 1.678 volts")
-        self.log.info(f"Expected pH 4.0 range = 1.854 to 2.210 volts")
+        vmin_ph7 = 1.2
+        # vmin_ph7 = 1.322 # Often getting lower than this for PH7
+        vmax_ph7 = 1.678
+        vmin_ph4 = 1.854
+        vmax_ph4 = 2.210
+        self.log.info(f"Expected pH 7.0 range = {vmin_ph7} to {vmax_ph7} volts")
+        self.log.info(f"Expected pH 4.0 range = {vmin_ph4} to {vmax_ph4} volts")
 
-        if (voltage>1.322 and voltage<1.678):
+        if (voltage>vmin_ph7 and voltage<vmax_ph7):
             self.neutral_voltage = voltage
             self.log.info(f"Calibrated pH 7.0 = {voltage} volts")
-            try:
-                with open(self.calibration_file, 'r+') as f:
-                    flist=f.readlines()
-                    flist[0]=f'neutral_voltage={self.neutral_voltage}\n'
-                    f.seek(0)
-                    f.writelines(flist)
-                    print(f"PH:7.0 Calibration saved, {flist[0]} -> {self.calibration_file}")
-            except Exception as e:
-                self.log.error(f'Could not save calibration data to {self.calibration_file}')
-                self.log.error(str(e))
+            self.write_calibration_file()
 
-        elif (voltage>1.854 and voltage<2.210):
+        elif (voltage>vmin_ph4 and voltage<vmax_ph4):
             self.acid_voltage = voltage
             self.log.info(f"Calibrated pH 4.0 = {voltage} volts")
+            self.write_calibration_file()
 
-            try:
-                with open(self.calibration_file, 'r+') as f:
-                    flist=f.readlines()
-                    flist[1]=f'acid_voltage={self.acid_voltage}\n'
-                    f.seek(0)
-                    f.writelines(flist)
-                    print(f"PH:4.0 Calibration saved, {flist[1]} -> {self.calibration_file}")
-            except Exception as e:
-                self.log.error(f'Could not save calibration data to {self.calibration_file}')
-                self.log.error(str(e))
         else:
-            self.log.error(f"Voltage={voltage}, out of range for PH4.0 or PH7.0")
+            self.log.warning(f"Voltage={voltage}, out of expected range for PH4.0 or PH7.0")
 
-    # def reset(self):
-    #     '''!
-    #       @brief   Reset the calibration data to default value.
-    #     '''
-        
-    #     _acidVoltage    = 2032.44
-    #     _neutralVoltage = 1500.0
-    #     try:
-    #         f=open('phdata.txt','r+')
-    #         flist=f.readlines()
-    #         flist[0]='neutralVoltage='+ str(_neutralVoltage) + '\n'
-    #         flist[1]='acidVoltage='+ str(_acidVoltage) + '\n'
-    #         f=open('phdata.txt','w+')
-    #         f.writelines(flist)
-    #         f.close()
-    #         print(">>>Reset to default parameters<<<")
-    #     except:
-    #         f=open('phdata.txt','w')
-    #         #flist=f.readlines()
-    #         flist   ='neutralVoltage='+ str(_neutralVoltage) + '\n'
-    #         flist  +='acidVoltage='+ str(_acidVoltage) + '\n'
-    #         #f=open('data.txt','w+')
-    #         f.writelines(flist)
-    #         f.close()
-    #         print(">>>Reset to default parameters<<<")
+
+    def write_calibration_file(self):
+        if self.calibration_file:
+            try:
+                with open(self.calibration_file,'w+') as f:
+                    f.write(f'neutral_voltage={self.neutral_voltage}\n')
+                    f.write(f'acid_voltage={self.acid_voltage}\n')
+                    self.log.info(f'Writing to calibration file: {self.calibration_file}:\n'
+                        + f'neutral_voltage={self.neutral_voltage}\n'
+                        + f'acid_voltage={self.acid_voltage}')
+            except Exception as e:
+                self.log.error(f'Could not write calibration data to {self.calibration_file}')
+                self.log.error(str(e)) 
