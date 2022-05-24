@@ -29,6 +29,7 @@ class DFRobot_PH():
         # defaults
         self.acid_voltage      = 2.03244
         self.neutral_voltage   = 1.50
+        self.calibration_temp  = 25
 
         if calibration_file:
             try:
@@ -37,8 +38,10 @@ class DFRobot_PH():
                     self.neutral_voltage = float(line.strip('neutral_voltage='))
                     line = f.readline()
                     self.acid_voltage = float(line.strip('acid_voltage='))
+                    line = f.readline()
+                    self.calibration_temp = float(line.strip('calibration_temp='))
 
-                    self.log.info(f'After calibration {self.neutral_voltage=} {self.acid_voltage=}')
+                    self.log.info(f'After calibration {self.neutral_voltage=}  {self.acid_voltage=} {self.calibration_temp=}')
             except OSError as e:
                 if e.errno==2:
                     self.log.warning(f'Calibration file not found: {calibration_file}')
@@ -60,12 +63,53 @@ class DFRobot_PH():
 
         return ph
 
-    def calibrate(self):
+    def read_PH(self, temperature=None):
+
+        voltage = self.adc.voltage
+
+        if not temperature:
+            temperature = self.calibration_temp
+
+        # Our probe's calibrated slope
+        slope = (7-4) / (self.neutral_voltage - self.acid_voltage) #pH/V
+
+        # Derivation of temperature effects is shown here, but value is hard coded as a temperature coefficent
+            # # Theoretical/ideal slopes according to Nernst Equation.
+            # # Using this so we don't have to calibrate our probe at 2 different temperatures.
+            # slope_00c = -54.20 #mV/pH at 0 degC
+            # slope_25c = -59.16 #mV/pH at 25 degC
+
+            # # Calculate how much the slope should be modified as we move away from 25C
+            # temperature_modifier = (slope_25c-slope_00c)/25 # mV/pH/degC
+
+            # # Our probe has a different range (all positive volts), convert to a ratio
+            # temperature_coeff = temperature_modifier/slope_25c # /degC
+
+        # slope changes (from calibration) by this much per degC
+        temperature_coeff = 0.00335 # /degC
+
+        # apply the temperature coeff to our slope    
+        slope = slope + (slope * temperature_coeff*(self.calibration_temp-temperature))
+
+        # To calculate pH, take the difference between voltage and neutral voltage
+        # This means the offset is exactly 7
+        # Necessary becuase neutral pH is the isopotential point 
+        # where temperature does not affect the measurement.
+        # http://tools.thermofisher.com/content/sfs/brochures/Log-86-Tip-pH-Temperature-Compensation-Simplified-EN.pdf
+
+        ph = (voltage - self.neutral_voltage) * slope + 7
+        ph = round(ph,2)
+
+        return ph
+
+    def calibrate(self, temperature=None):
 
         if not self.calibration_file:
             self.log.warning('No calibration file specified, calibration will not be saved!')
 
         voltage = self.adc.voltage
+        if temperature:
+            self.calibration_temp = temperature
         
         self.log.info('These ranges may need adjusted:')
         vmin_ph7 = 1.2
@@ -96,9 +140,11 @@ class DFRobot_PH():
                 with open(self.calibration_file,'w+') as f:
                     f.write(f'neutral_voltage={self.neutral_voltage}\n')
                     f.write(f'acid_voltage={self.acid_voltage}\n')
-                    self.log.info(f'Writing to calibration file: {self.calibration_file}:\n'
+                    f.write(f'calibration_temp={self.calibration_temp}\n')
+                    self.log.info(f'Writing to calibration file --> {self.calibration_file}:\n'
                         + f'neutral_voltage={self.neutral_voltage}\n'
-                        + f'acid_voltage={self.acid_voltage}')
+                        + f'acid_voltage={self.acid_voltage}\n'
+                        + f'calibration_temp={self.calibration_temp}\n')
             except Exception as e:
                 self.log.error(f'Could not write calibration data to {self.calibration_file}')
                 self.log.error(str(e)) 
