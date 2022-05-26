@@ -50,7 +50,7 @@ __version__ = "0.0.0-auto.0"
 __repo__ = "https://github.com/calcut/circuitpy-mcu"
 
 class Mcu():
-    def __init__(self, i2c_freq=50000, i2c_lookup=None):
+    def __init__(self, i2c_freq=50000, i2c_lookup=None, uart_baud=None):
 
         # Initialise some key variables
         self.wifi_connected = False
@@ -84,6 +84,11 @@ class Mcu():
         self.i2c_power = digitalio.DigitalInOut(board.I2C_POWER)
         self.i2c_power_on()
         self.i2c = busio.I2C(board.SCL, board.SDA, frequency=i2c_freq)
+
+        if uart_baud:
+            self.uart = busio.UART(board.TX, board.RX, baudrate=uart_baud)
+        else:
+            self.uart = None
 
         # Setup Neopixel, helpful to indicate status 
         self.pixel = neopixel.NeoPixel(board.NEOPIXEL, 1, auto_write=True)
@@ -358,7 +363,7 @@ class Mcu():
                     self.log.warning(f'AIO receive error, trying longer timeout')
                     self.io.loop(timeout=0.5) 
 
-    def aio_send(self, feeds, location=None):
+    def aio_send(self, feeds, group=None, location=None):
         if self.aio_connected:
             if not self.aio_throttled:
                 if (time.monotonic() - self.timer_publish) >= self.aio_interval_minimum:
@@ -366,8 +371,15 @@ class Mcu():
                     self.log.info(f"Publishing to AIO:")
                     try:
                         for feed_id in sorted(feeds):
-                            self.io.publish(feed_id, str(feeds[feed_id]), metadata=location)
-                            self.log.info(f"{feeds[feed_id]} --> {feed_id}")
+                            if group:
+                                full_name = f'{group}.{feed_id}'
+                                # is_group = True
+                            else:
+                                full_name = feed_id
+                                # is_group = False
+                            print(f'{full_name=}')
+                            self.io.publish(full_name, str(feeds[feed_id]), metadata=location)
+                            self.log.info(f"{feeds[feed_id]} --> {full_name}")
                         if location:
                             self.log.info(f"with location = {location}")
 
