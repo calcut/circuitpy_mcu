@@ -50,7 +50,7 @@ __version__ = "0.0.0-auto.0"
 __repo__ = "https://github.com/calcut/circuitpy-mcu"
 
 class Mcu():
-    def __init__(self, i2c_freq=50000, i2c_lookup=None, uart_baud=None):
+    def __init__(self, i2c_freq=50000, i2c_lookup=None, uart_baud=None, watchdog_timeout=None):
 
         # Initialise some key variables
         self.wifi_connected = False
@@ -77,7 +77,8 @@ class Mcu():
         self.log.level = logging.INFO
 
         # Use a watchdog to detect if the code has got stuck anywhere
-        self.enable_watchdog()
+        if watchdog_timeout:
+            self.enable_watchdog(watchdog_timeout)
 
         # Pull the I2C power pin low to enable I2C power
         self.log.info('Powering up I2C bus')
@@ -423,6 +424,18 @@ class Mcu():
         except Exception as e:
             self.sdcard = None
             self.log_exception(e)
+
+    def delete_archive(self, archive_dir='/sd/archive'):
+        try:
+            list = os.listdir(archive_dir)
+            for f in list:
+                filepath = f'{archive_dir}/{f}'
+                os.remove(filepath)
+                self.log.info(f'Deleted {filepath}')
+        except:
+            self.log.warning(f'{dir} directory not found')
+            return
+
 
     def archive_file(self, file, dir='/sd', archive_dir='/sd/archive'):
 
