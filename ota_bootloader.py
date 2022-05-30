@@ -23,7 +23,6 @@ class Bootloader():
 
     def __init__(self, watchdog_timeout=20):
 
-            # def enable_watchdog(self, timeout=20):
         # Setup a watchdog to reset the device if it stops responding.
         self.watchdog = watchdog
         self.watchdog.timeout=watchdog_timeout #seconds
@@ -32,18 +31,6 @@ class Bootloader():
         self.watchdog.feed()
         print(f'Watchdog enabled with timeout = {self.watchdog.timeout}s')
 
-        # Setup Neopixel, helpful to indicate status 
-        # self.pixel = neopixel.NeoPixel(board.NEOPIXEL, 1, auto_write=True)
-        # self.pixel.RED      = 0xff0000
-        # self.pixel.GREEN    = 0x00ff00
-        # self.pixel.BLUE     = 0x0000ff
-        # self.pixel.MAGENTA  = 0xff00ff
-        # self.pixel.YELLOW   = 0xffff00
-        # self.pixel.CYAN     = 0x00ffff
-        # pixel_brightness = 0.1
-        # self.pixel.brightness = pixel_brightness
-        # self.pixel[0] = self.pixel.GREEN
-
         self.requests = None
 
 
@@ -51,13 +38,11 @@ class Bootloader():
         try:
             with open('write_test.txt', 'w') as f:
                 f.write('test')
-                # print('write success')
             os.remove('write_test.txt')
             return True
             
         except Exception as e:
-            print(e)
-            # print('write failed')
+            # print(e)
             return False
 
     def wifi_scan(self):
@@ -138,13 +123,16 @@ class Bootloader():
 
     def get_ota_list(self, url):
         
-        if not self.writable_check:
-            raise Exception('Error, Read Only Filesystem, please configure boot.py to remount storage appropriately')
-
-        if not self.requests:
-            self.wifi_connect()
-
         try:
+            if not self.writable_check():
+                print('\nOTA Update Failed. Read Only Filesystem')
+                print('please configure boot.py to remount storage appropriately\n')
+                time.sleep(3)
+                return False
+
+            if not self.requests:
+                self.wifi_connect()
+
             print(f'trying to fetch ota files defined in {url}')
             response = self.requests.get(url)
             ota_list = response.json()
@@ -158,44 +146,8 @@ class Bootloader():
                     f.write(file)
             
             return True
-                # print(f'reading {path}')
-                # with open(path, 'r') as f:
-                #     line = f.readline()
-                #     while line != '':
-                #         print(line)
-                #         line = f.readline()
 
         except Exception as e:
             print(e)
             print(f'Could not get {url}')
             raise
-
-# while True:
-#     mcu.watchdog.feed()
-#     print('receiving')
-#     mcu.aio_receive()
-#     mcu.io.get(f'{AIO_GROUP}.ota')
-
-#     if mcu.ota_requested:
-#         get_ota_list(OTA_LIST_URL)
-#         mcu.ota_requested = False
-
-#     print('importing')
-
-
-#     print('sleeping 3')
-#     time.sleep(3)
-
-# pool = socketpool.SocketPool(wifi.radio)
-# requests = adafruit_requests.Session(pool, ssl.create_default_context())
-
-
-# url = f'https://downloads.circuitpython.org/bin/adafruit_feather_esp32s2/en_GB/adafruit-circuitpython-adafruit_feather_esp32s2-en_GB-7.2.5.bin'
-# response = requests.get(url)
-
-# chunk_size = 1024
-# offset=0
-# for chunk in response.iter_content(chunk_size):
-#     print(f'offset = {offset}')
-#     dualbank.flash(chunk, offset=offset)
-#     offset += chunk_size
