@@ -56,6 +56,7 @@ class Mcu():
         self.wifi_connected = False
         self.aio_connected = False
         self.aio_log_feed = None
+        self.aio_group = None
         self.feeds = {} # A dict to store the values of AIO feeds
         self.aio_interval_minimum = 2 #Just an initial value, will be updated in code
         self.aio_throttled = False
@@ -233,9 +234,10 @@ class Mcu():
         self.requests = adafruit_requests.Session(self.pool, ssl.create_default_context())
 
 
-    def aio_setup(self, log_feed=None):
+    def aio_setup(self, log_feed=None, group=None):
 
         self.aio_log_feed = log_feed
+        self.aio_group = group
 
         # Initialize a new MQTT Client object
         self.mqtt_client = MQTT.MQTT(
@@ -296,7 +298,8 @@ class Mcu():
         self.io.subscribe_to_time("seconds")
         self.io.subscribe_to_throttling()
         self.io.subscribe_to_errors()
-        self.io.subscribe("ota") #Listen for requests for over the air updates
+        if self.aio_group:
+            self.io.subscribe(f"{self.aio_group}.ota") #Listen for requests for over the air updates
 
     def aio_subscribe_callback(self, client, userdata, topic, granted_qos):
         # This method is called when the client subscribes to a new feed.
@@ -326,7 +329,8 @@ class Mcu():
         if feed_id == 'seconds':
             self.rtc.datetime = time.localtime(int(payload))
             # self.log.debug(f'RTC syncronised')
-        elif feed_id == 'ota':
+        elif feed_id == f"{self.aio_group}.ota":
+            print(f'got OTA request {payload}')
             self.ota_requested = True # Can't fetch OTA in a callback, causes SSL errors.
         else:
             self.log.info(f"{feed_id} = {payload}")
@@ -378,7 +382,6 @@ class Mcu():
                             else:
                                 full_name = feed_id
                                 # is_group = False
-                            print(f'{full_name=}')
                             self.io.publish(full_name, str(feeds[feed_id]), metadata=location)
                             self.log.info(f"{feeds[feed_id]} --> {full_name}")
                         if location:
