@@ -5,9 +5,10 @@ import ssl
 import socketpool
 import wifi
 import neopixel
-import board
-from microcontroller import watchdog
+# import board
+import microcontroller
 from watchdog import WatchDogMode, WatchDogTimeout
+import traceback
 
 # import dualbank
 import time
@@ -21,18 +22,31 @@ except ImportError:
 
 class Bootloader():
 
-    def __init__(self, watchdog_timeout=20):
+    def __init__(self, url, watchdog_timeout=20):
 
         # Setup a watchdog to reset the device if it stops responding.
-        self.watchdog = watchdog
+        self.watchdog = microcontroller.watchdog
         self.watchdog.timeout=watchdog_timeout #seconds
         # watchdog.mode = WatchDogMode.RESET # This does a hard reset
         self.watchdog.mode = WatchDogMode.RAISE # This prints a message then does a soft reset
         self.watchdog.feed()
         print(f'Watchdog enabled with timeout = {self.watchdog.timeout}s')
 
-        self.requests = None
+        try:
+            self.get_ota_list(url) 
 
+        except WatchDogTimeout:
+            print('Code Stopped by WatchDog Timeout during OTA update!')
+            print('Performing hard reset in 15s')
+            time.sleep(15)
+            microcontroller.reset()
+
+        except Exception as e:
+            print(f'Code stopped by unhandled exception:')
+            print(traceback.format_exception(None, e, e.__traceback__))
+            print('Performing a hard reset in 15s')
+            time.sleep(15) #Make sure this is shorter than watchdog timeout
+            microcontroller.reset()
 
     def writable_check(self):
         try:
@@ -57,12 +71,6 @@ class Bootloader():
 
 
     def wifi_connect(self):
-        ### WiFi ###
-
-        # Add a secrets.py to your filesystem that has a dictionary called secrets with "ssid" and
-        # "password" keys with your WiFi credentials. DO NOT share that file or commit it into Git or other
-        # source control.
-
         i=0
         ssid = secrets["ssid"]
         password = secrets["password"]
@@ -130,8 +138,7 @@ class Bootloader():
                 time.sleep(3)
                 return False
 
-            if not self.requests:
-                self.wifi_connect()
+            self.wifi_connect()
 
             print(f'trying to fetch ota files defined in {url}')
             response = self.requests.get(url)
