@@ -132,7 +132,7 @@ class Mcu():
         rest_level = self.i2c_power.value
 
         self.i2c_power.switch_to_output(value=(not rest_level))
-        time.sleep(1)
+        time.sleep(1.5) # Sometimes even 1s is not enough for e.g. i2c displays. Worse in the heat?
 
     def i2c_power_off(self):
         self.i2c_power.switch_to_input()
@@ -533,54 +533,6 @@ class Mcu():
                     continue
             
             return line
-
-    def get_latest_release_ota(self, user=secrets['git_user'],
-                                     repo=secrets['git_repo'],
-                                     file=secrets['ota_file']):
-
-        if self.aio_connected:
-            # Have not figured out how to make this work when AIO is connected.
-            # All sorts of SSL related errors happen
-            self.io.disconnect()
-            self.aio_connected = False
-
-        url_latest = f'https://api.github.com/repos/{user}/{repo}/releases/latest'
-
-        try:
-            print(f'trying to fetch {url_latest}')
-            release = self.requests.get(url_latest).json()
-            print(f'tag name = {release["tag_name"]}')
-            # content = self.requests.get(git_url).content
-        except KeyError as e:
-            print(e)
-            print(release)
-            return False
-        except Exception as e:
-            print(e)
-            return False
-
-        filename = f'ota_{file}'
-        url = f'https://raw.githubusercontent.com/{user}/{repo}/{release["tag_name"]}/{file}'
-        print(f'trying to fetch {url}')
-        try:
-            file = self.requests.get(url).content
-        except Exception as e:
-            print(e)
-            print(f'Could not get {url}')
-            return False
-
-        try:
-            with open(filename, 'w') as f:
-                f.write(file)
-                self.log.info(f'wrote {filename}')
-        except Exception as e:
-            self.log.warning(f'could not write {filename}, filesystem is probably Read Only')
-            return False
-        
-        self.log.warning(f'About to load new OTA file {filename}')
-        time.sleep(1)
-        supervisor.set_next_code_file(filename)
-        supervisor.reload()
 
 class McuLogHandler(logging.LoggingHandler):
 
