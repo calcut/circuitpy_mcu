@@ -1,5 +1,4 @@
 # from circuitpy_mcu.mcu import Mcu
-# from circuitpy_mcu.display import LCD_20x4
 import adafruit_requests
 import ssl
 import socketpool
@@ -20,6 +19,14 @@ except ImportError:
     print("WiFi secrets are kept in secrets.py, please add them there!")
     raise
 
+try:
+    from circuitpy_mcu.display import LCD_20x4
+    import digitalio
+    import board
+    import busio
+except:
+    print('Could not import Display')
+
 class Bootloader():
 
     def __init__(self, url, watchdog_timeout=20):
@@ -31,6 +38,16 @@ class Bootloader():
         self.watchdog.mode = WatchDogMode.RAISE # This prints a message then does a soft reset
         self.watchdog.feed()
         print(f'Watchdog enabled with timeout = {self.watchdog.timeout}s')
+
+        try:
+            self.i2c_power_on()
+            time.sleep(1)
+            i2c = busio.I2C(board.SCL, board.SDA)
+            self.display = LCD_20x4(i2c)
+        except Exception as e:
+            print(e)
+            print('Error setting up 20x4 i2c Display')
+            self.display = None
 
         try:
             self.get_ota_list(url) 
@@ -47,6 +64,17 @@ class Bootloader():
             print('Performing a hard reset in 15s')
             time.sleep(15) #Make sure this is shorter than watchdog timeout
             microcontroller.reset()
+
+    def i2c_power_on(self):
+        # Due to board rev B/C differences, need to read the initial state
+        # https://learn.adafruit.com/adafruit-esp32-s2-feather/i2c-power-management
+        self.i2c_power = digitalio.DigitalInOut(board.I2C_POWER)
+        self.i2c_power.switch_to_input()
+        time.sleep(0.01)  # wait for default value to settle
+        rest_level = self.i2c_power.value
+
+        self.i2c_power.switch_to_output(value=(not rest_level))
+        time.sleep(1)
 
     def writable_check(self):
         try:
@@ -141,6 +169,7 @@ class Bootloader():
             self.wifi_connect()
 
             print(f'trying to fetch ota files defined in {url}')
+            self.display.show_text(f'lalala')
             response = self.requests.get(url)
             ota_list = response.json()
 
@@ -148,6 +177,7 @@ class Bootloader():
                 self.watchdog.feed()
                 self.mkdir_parents(path)
                 print(f'saving {list_url} to {path}')
+                self.display.show_text(f'{path}')
                 file = self.requests.get(list_url).content
                 with open(path, 'w') as f:
                     f.write(file)
