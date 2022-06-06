@@ -19,13 +19,6 @@ except ImportError:
     print("WiFi secrets are kept in secrets.py, please add them there!")
     raise
 
-try:
-    from circuitpy_mcu.display import LCD_20x4
-    import digitalio
-    import board
-    import busio
-except:
-    print('Could not import Display')
 
 class Bootloader():
 
@@ -40,10 +33,24 @@ class Bootloader():
         print(f'Watchdog enabled with timeout = {self.watchdog.timeout}s')
 
         try:
-            self.i2c_power_on()
-            time.sleep(1)
-            i2c = busio.I2C(board.SCL, board.SDA)
-            self.display = LCD_20x4(i2c)
+            from sparkfun_serlcd import Sparkfun_SerLCD_I2C
+            import digitalio
+            import board
+            import busio
+
+            # Ensure I2C is powered on, regardless of board rev
+            i2c_power = digitalio.DigitalInOut(board.I2C_POWER)
+            i2c_power.switch_to_input()
+            time.sleep(0.01)  # wait for default value to settle
+            rest_level = i2c_power.value
+            i2c_power.switch_to_output(value=(not rest_level))
+            time.sleep(1.5) # Display sometimes needs >1s!
+
+            i2c = busio.I2C(board.SCL, board.SDA, frequency=50000)
+
+            self.display = Sparkfun_SerLCD_I2C(i2c)
+            self.display.set_fast_backlight_rgb(255, 255, 255)
+
         except Exception as e:
             print(e)
             print('Error setting up 20x4 i2c Display')
@@ -64,6 +71,13 @@ class Bootloader():
             print('Performing a hard reset in 15s')
             time.sleep(15) #Make sure this is shorter than watchdog timeout
             microcontroller.reset()
+
+    def display_text(self, text, row=0, clear=True):
+        if self.display:
+            if clear:
+                self.display.clear()
+            self.set_cursor(0,row)
+            self.display.write(text)
 
     def i2c_power_on(self):
         # Due to board rev B/C differences, need to read the initial state
@@ -117,8 +131,10 @@ class Bootloader():
         while True:
             try:
                 print(f'Wifi: {ssid}')
+                self.display_text(f'Wifi: {ssid}', row=1, clear=False)
                 wifi.radio.connect(ssid, password)
                 print("Wifi Connected")
+                self.display_text(f'Wifi Connected', row=2, clear=False)
                 # self.pixel[0] = self.pixel.CYAN
                 self.wifi_connected = True
                 self.watchdog.feed()
@@ -126,6 +142,7 @@ class Bootloader():
             except ConnectionError as e:
                 print(e)
                 print(f"{ssid} connection failed")
+                self.display_text(f'Connection Failed', row=2, clear=False)
                 network_list = list(secrets['networks'])
                 ssid = network_list[i]
                 password = secrets["networks"][network_list[i]]
@@ -166,10 +183,11 @@ class Bootloader():
                 time.sleep(3)
                 return False
 
+            self.display_text('Over-the-Air Update')
             self.wifi_connect()
 
             print(f'trying to fetch ota files defined in {url}')
-            self.display.show_text(f'lalala')
+            self.display_text(f'{url}')
             response = self.requests.get(url)
             ota_list = response.json()
 
