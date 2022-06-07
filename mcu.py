@@ -485,6 +485,17 @@ class Mcu():
             else:
                 self.log.error("Unknown Display")
 
+    def writable_check(self):
+        # For testing if CIRCUITPY drive is writable by circuitpython
+        try:
+            with open('write_test.txt', 'w') as f:
+                f.write('test')
+            os.remove('write_test.txt')
+            return True
+            
+        except Exception as e:
+            # print(e)
+            return False
 
     def read_serial(self, send_to=None):
         # This is likely broken, it was intended to be used with asyncio
