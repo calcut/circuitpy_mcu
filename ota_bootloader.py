@@ -76,7 +76,7 @@ class Bootloader():
         if self.display:
             if clear:
                 self.display.clear()
-            self.set_cursor(0,row)
+            self.display.set_cursor(0,row)
             self.display.write(text)
 
     def i2c_power_on(self):
@@ -134,8 +134,6 @@ class Bootloader():
                 self.display_text(f'Wifi: {ssid}', row=1, clear=False)
                 wifi.radio.connect(ssid, password)
                 print("Wifi Connected")
-                self.display_text(f'Wifi Connected', row=2, clear=False)
-                # self.pixel[0] = self.pixel.CYAN
                 self.wifi_connected = True
                 self.watchdog.feed()
                 break
@@ -187,16 +185,20 @@ class Bootloader():
             self.wifi_connect()
 
             print(f'trying to fetch ota files defined in {url}')
-            self.display_text(f'{url}')
+            self.display_text(f'ota_list.py')
             response = self.requests.get(url)
             ota_list = response.json()
 
-            for path, list_url in ota_list.items():
+            for path, item_url in ota_list.items():
                 self.watchdog.feed()
                 self.mkdir_parents(path)
-                print(f'saving {list_url} to {path}')
-                self.display.show_text(f'{path}')
-                file = self.requests.get(list_url).content
+                print(f'saving {item_url} to {path}')
+                url_list = item_url.split('/')
+                self.display_text(f'{url_list[-1]}', row=0, clear=True)
+                self.display_text(f'{url_list[-2]}', row=1, clear=False)
+                self.display_text(f'{url_list[-3]}', row=2, clear=False)
+                time.sleep(0.5)
+                file = self.requests.get(item_url).content
                 with open(path, 'w') as f:
                     f.write(file)
             
