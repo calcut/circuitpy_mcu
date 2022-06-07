@@ -201,7 +201,9 @@ class Bootloader():
                 file = self.requests.get(item_url).content
                 with open(path, 'w') as f:
                     f.write(file)
-            
+
+            self.display_text(f'OTA Success', row=0, clear=True)
+            time.sleep(1)
             return True
 
         except Exception as e:
