@@ -5,7 +5,7 @@
 # System and timing
 import time
 import rtc
-from microcontroller import watchdog
+import microcontroller
 from watchdog import WatchDogMode, WatchDogTimeout
 import supervisor
 import gc
@@ -108,7 +108,7 @@ class Mcu():
         self.led.direction = digitalio.Direction.OUTPUT
         self.led.value = False
 
-        
+        self.data = {}
 
     def log_exception(self, e):
         # formats an exception to print to log as an error,
@@ -117,7 +117,7 @@ class Mcu():
 
     def enable_watchdog(self, timeout=20):
         # Setup a watchdog to reset the device if it stops responding.
-        self.watchdog = watchdog
+        self.watchdog = microcontroller.watchdog
         self.watchdog.timeout=timeout #seconds
         # watchdog.mode = WatchDogMode.RESET # This does a hard reset
         self.watchdog.mode = WatchDogMode.RAISE # This prints a message then does a soft reset
@@ -544,6 +544,16 @@ class Mcu():
                     continue
             
             return line
+
+    def ota_check(self):
+        if self.ota_requested:
+            if self.writable_check():
+                self.log.warning('OTA update requested, resetting')
+                time.sleep(1)
+                microcontroller.reset()
+            else:
+                self.log.warning('OTA update requested, but CIRCUITPY not writable, skipping')
+                self.ota_requested = False
 
 class McuLogHandler(logging.LoggingHandler):
 
