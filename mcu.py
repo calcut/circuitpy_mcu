@@ -555,12 +555,12 @@ class Mcu():
                 self.log.warning('OTA update requested, but CIRCUITPY not writable, skipping')
                 self.ota_requested = False
 
-class McuLogHandler(logging.LoggingHandler):
+class McuLogHandler(logging.Handler):
 
     def __init__(self, mcu_device):
         self._device = mcu_device
 
-    def emit(self, level, msg):
+    def _emit(self, level, msg):
         """Generate the message and write it to the AIO Feed.
 
         :param level: The level at which to log
@@ -573,7 +573,7 @@ class McuLogHandler(logging.LoggingHandler):
             # and is effectively the default.
             text = msg
         else:
-            text = f'{logging.level_for(level)} {msg}'
+            text = f'{logging._level_for(level)} {msg}'
 
         # Print to Serial
         print(text)
