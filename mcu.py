@@ -82,7 +82,7 @@ class Mcu():
             self.enable_watchdog(watchdog_timeout)
 
         # Pull the I2C power pin low to enable I2C power
-        self.log.info('Powering up I2C bus')
+        self.print('Powering up I2C bus')
         self.i2c_power = digitalio.DigitalInOut(board.I2C_POWER)
         self.i2c_power_on()
         self.i2c = busio.I2C(board.SCL, board.SDA, frequency=i2c_freq)
@@ -122,7 +122,7 @@ class Mcu():
         # watchdog.mode = WatchDogMode.RESET # This does a hard reset
         self.watchdog.mode = WatchDogMode.RAISE # This prints a message then does a soft reset
         self.watchdog.feed()
-        self.log.info(f'Watchdog enabled with timeout = {self.watchdog.timeout}s')
+        self.print(f'Watchdog enabled with timeout = {self.watchdog.timeout}s')
 
     def i2c_power_on(self):
         # Due to board rev B/C differences, need to read the initial state
@@ -146,7 +146,7 @@ class Mcu():
         while not self.i2c.try_lock():  pass
 
         if i2c_lookup:
-            self.log.info(f'\nChecking if expected I2C devices are present:')
+            self.print(f'\nChecking if expected I2C devices are present:')
             
             lookup_result = i2c_lookup.copy()
             devs_present = []
@@ -160,29 +160,29 @@ class Mcu():
                 else:
                     lookup_result[addr_hex] = False
             
-                self.log.info(f'{addr_hex} : {i2c_lookup[addr_hex]} = {lookup_result[addr_hex]}')
+                self.print(f'{addr_hex} : {i2c_lookup[addr_hex]} = {lookup_result[addr_hex]}')
                 
             if len(devs_present) > 0:
-                self.log.info(f'Unknown devices found: {devs_present}')
+                self.print(f'Unknown devices found: {devs_present}')
 
         else:
             for device_address in self.i2c.scan():
                 addr_hex = f'0x{device_address:0{2}X}'
-                self.log.info(f'{addr_hex}')
+                self.print(f'{addr_hex}')
             lookup_result = None
 
         self.i2c.unlock()
         return lookup_result
 
     def wifi_scan(self):
-        self.log.info('\nScanning for nearby WiFi networks...')
+        self.print('\nScanning for nearby WiFi networks...')
         self.networks = []
         for network in wifi.radio.start_scanning_networks():
             self.networks.append(network)
         wifi.radio.stop_scanning_networks()
         self.networks = sorted(self.networks, key=lambda net: net.rssi, reverse=True)
         for network in self.networks:
-            self.log.info(f'ssid: {network.ssid}\t rssi:{network.rssi}')
+            self.print(f'ssid: {network.ssid}\t rssi:{network.rssi}')
 
 
     def wifi_connect(self):
@@ -203,16 +203,16 @@ class Mcu():
             if strongest_ssid in secrets["networks"]:
                 ssid = strongest_ssid
                 password = secrets["networks"][ssid]
-                self.log.info('Using strongest wifi network')
+                self.print('Using strongest wifi network')
         except Exception as e:
             self.log_exception(e)
 
         while True:
             try:
-                self.log.info(f'Wifi: {ssid}')
+                self.print(f'Wifi: {ssid}')
                 self.display_text(f'Wifi: {ssid}')
                 wifi.radio.connect(ssid, password)
-                self.log.info("Wifi Connected")
+                self.print("Wifi Connected")
                 self.display_text("Wifi Connected")
                 self.pixel[0] = self.pixel.CYAN
                 self.wifi_connected = True
@@ -262,7 +262,7 @@ class Mcu():
         self.io.on_message = self.aio_message_callback
 
         # Connect to Adafruit IO
-        self.log.info("Adafruit IO...")
+        self.print("Adafruit IO...")
         self.display_text("Adafruit IO...")
         try:
             self.io.connect()
@@ -273,7 +273,13 @@ class Mcu():
    
     def subscribe(self, feed):
         # Subscribe to a feed from Adafruit IO
-        self.io.subscribe(feed)
+        try:
+            self.io.subscribe(feed)
+        except MemoryError as e:
+            self.log.warning(f"MemoryError: memory allocation failed while subscribing to {feed}, retrying")
+            time.sleep(1) #perhaps sleep time helps here?
+            self.io.subscribe(feed)
+
         # Request latest value from the feed
         try:
             self.io.get(feed)
@@ -291,7 +297,7 @@ class Mcu():
         # This is a good place to subscribe to feed changes.  The client parameter
         # passed to this function is the Adafruit IO MQTT client so you can make
         # calls against it easily.
-        self.log.info("Connected to AIO")
+        self.print("Connected to AIO")
         self.display_text("Connected to AIO")
         self.aio_connected = True
         self.pixel[0] = self.pixel.MAGENTA
@@ -304,7 +310,7 @@ class Mcu():
     def aio_subscribe_callback(self, client, userdata, topic, granted_qos):
         # This method is called when the client subscribes to a new feed.
         print(f"Subscribed to {topic} with QOS level {granted_qos}")
-        # self.log.info(f"Subscribed to {topic} with QOS level {granted_qos}")
+        # self.print(f"Subscribed to {topic} with QOS level {granted_qos}")
 
         # Not using logger in this callback, as errors were seen eg.
         # AdafruitIO_MQTTError: MQTT Error: Unable to connect to Adafruit IO.
@@ -312,12 +318,12 @@ class Mcu():
 
     def aio_unsubscribe_callback(self, client, userdata, topic, pid):
         # This method is called when the client unsubscribes from a feed.
-        self.log.info(f"Unsubscribed from {topic} with PID {pid}")
+        self.print(f"Unsubscribed from {topic} with PID {pid}")
 
     # pylint: disable=unused-argument
     def aio_disconnected_callback(self, client):
         # Disconnected function will be called when the client disconnects.
-        self.log.info("Disconnected from Adafruit IO!")
+        self.print("Disconnected from Adafruit IO!")
         self.aio_connected = False
 
 
@@ -333,7 +339,7 @@ class Mcu():
             print(f'got OTA request {payload}')
             self.ota_requested = True # Can't fetch OTA in a callback, causes SSL errors.
         else:
-            self.log.info(f"{feed_id} = {payload}")
+            self.print(f"{feed_id} = {payload}")
             self.feeds[feed_id] = payload
 
 
@@ -373,7 +379,7 @@ class Mcu():
             if not self.aio_throttled:
                 if (time.monotonic() - self.timer_publish) >= self.aio_interval_minimum:
                     self.timer_publish = time.monotonic()
-                    self.log.info(f"Publishing to AIO:")
+                    self.print(f"Publishing to AIO:")
                     try:
                         for feed_id in sorted(feeds):
                             if group:
@@ -383,9 +389,9 @@ class Mcu():
                                 full_name = feed_id
                                 # is_group = False
                             self.io.publish(full_name, str(feeds[feed_id]), metadata=location)
-                            self.log.info(f"{feeds[feed_id]} --> {full_name}")
+                            self.print(f"{feeds[feed_id]} --> {full_name}")
                         if location:
-                            self.log.info(f"with location = {location}")
+                            self.print(f"with location = {location}")
 
                     except Exception as e:
                         self.log_exception(e)
@@ -399,7 +405,7 @@ class Mcu():
                         self.aio_interval_minimum = min_interval
 
                 else:
-                    self.log.info(f"Did not publish, aio_interval_minimum set to {self.aio_interval_minimum}s"
+                    self.print(f"Did not publish, aio_interval_minimum set to {self.aio_interval_minimum}s"
                                     +f" Time remaining: {int(self.aio_interval_minimum - (time.monotonic() - self.timer_publish))}s")
             else:
                 self.log.warning(f'Did not publish, throttled flag = {self.aio_throttled}')
@@ -434,7 +440,7 @@ class Mcu():
             for f in list:
                 filepath = f'{archive_dir}/{f}'
                 os.remove(filepath)
-                self.log.info(f'Deleted {filepath}')
+                self.print(f'Deleted {filepath}')
         except:
             self.log.warning(f'{dir} directory not found')
             return
@@ -472,7 +478,7 @@ class Mcu():
 
         newpath = f'{archive_dir}/{newfile}'
         os.rename(filepath, newpath)
-        self.log.info(f'{filepath} moved to {newpath}')
+        self.print(f'{filepath} moved to {newpath}')
 
     def display_text(self, text):
         if self.display:
@@ -555,6 +561,9 @@ class Mcu():
                 self.log.warning('OTA update requested, but CIRCUITPY not writable, skipping')
                 self.ota_requested = False
 
+    def print(self, string):
+        self.log.log(level=0, msg=string)
+
 class McuLogHandler(logging.Handler):
 
     def __init__(self, mcu_device):
@@ -568,7 +577,8 @@ class McuLogHandler(logging.Handler):
 
         """
 
-        if level == logging.INFO:
+        # if level == logging.INFO:
+        if level == 0:
             # Don't include the "INFO" in the string, because this used a lot,
             # and is effectively the default.
             text = msg
@@ -582,14 +592,18 @@ class McuLogHandler(logging.Handler):
         #   AND we are connected to AIO, AND a logfeed has been specified
         #   AND we are not currently throttled
         logfeed = self._device.aio_log_feed
+        group = self._device.aio_group
    
         if (self._device.aio_connected 
             and logfeed
             and not self._device.aio_throttled
-            and level >= logging.WARNING):
+            and level >= logging.INFO):
 
             try:
-                self._device.io.publish(logfeed, text)
+                if group:
+                    self._device.io.publish(f'{group}.{logfeed}', text)
+                else:
+                    self._device.io.publish(logfeed, text)
             except Exception as e:
                 print(f'Error publishing to AIO log: {e}')
 
