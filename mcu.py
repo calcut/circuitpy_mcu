@@ -57,7 +57,10 @@ class Mcu():
         self.aio_connected = False
         self.aio_log_feed = None
         self.aio_group = None
-        self.feeds = {} # A dict to store the values of AIO feeds
+        self.feeds = {} # A dict to store the incoming values of AIO feeds
+        self.data = {} # A dict to store the outgoing values of data
+        self.logdata = None # A str to accumulate non urgent logs to send to AIO periodically
+        self.booting = False # a flag to indicate boot log messages should be recorded
         self.aio_interval_minimum = 2 #Just an initial value, will be updated in code
         self.aio_throttled = False
         self.timer_publish = time.monotonic()
@@ -82,7 +85,7 @@ class Mcu():
             self.enable_watchdog(watchdog_timeout)
 
         # Pull the I2C power pin low to enable I2C power
-        self.print('Powering up I2C bus')
+        self.log.info('Powering up I2C bus')
         self.i2c_power = digitalio.DigitalInOut(board.I2C_POWER)
         self.i2c_power_on()
         self.i2c = busio.I2C(board.SCL, board.SDA, frequency=i2c_freq)
@@ -108,7 +111,7 @@ class Mcu():
         self.led.direction = digitalio.Direction.OUTPUT
         self.led.value = False
 
-        self.data = {}
+
 
     def log_exception(self, e):
         # formats an exception to print to log as an error,
@@ -122,7 +125,7 @@ class Mcu():
         # watchdog.mode = WatchDogMode.RESET # This does a hard reset
         self.watchdog.mode = WatchDogMode.RAISE # This prints a message then does a soft reset
         self.watchdog.feed()
-        self.print(f'Watchdog enabled with timeout = {self.watchdog.timeout}s')
+        self.log.info(f'Watchdog enabled with timeout = {self.watchdog.timeout}s')
 
     def i2c_power_on(self):
         # Due to board rev B/C differences, need to read the initial state
@@ -146,7 +149,7 @@ class Mcu():
         while not self.i2c.try_lock():  pass
 
         if i2c_lookup:
-            self.print(f'\nChecking if expected I2C devices are present:')
+            self.log.info(f'\nChecking if expected I2C devices are present:')
             
             lookup_result = i2c_lookup.copy()
             devs_present = []
@@ -160,29 +163,29 @@ class Mcu():
                 else:
                     lookup_result[addr_hex] = False
             
-                self.print(f'{addr_hex} : {i2c_lookup[addr_hex]} = {lookup_result[addr_hex]}')
+                self.log.info(f'{addr_hex} : {i2c_lookup[addr_hex]} = {lookup_result[addr_hex]}')
                 
             if len(devs_present) > 0:
-                self.print(f'Unknown devices found: {devs_present}')
+                self.log.info(f'Unknown devices found: {devs_present}')
 
         else:
             for device_address in self.i2c.scan():
                 addr_hex = f'0x{device_address:0{2}X}'
-                self.print(f'{addr_hex}')
+                self.log.info(f'{addr_hex}')
             lookup_result = None
 
         self.i2c.unlock()
         return lookup_result
 
     def wifi_scan(self):
-        self.print('\nScanning for nearby WiFi networks...')
+        self.log.info('\nScanning for nearby WiFi networks...')
         self.networks = []
         for network in wifi.radio.start_scanning_networks():
             self.networks.append(network)
         wifi.radio.stop_scanning_networks()
         self.networks = sorted(self.networks, key=lambda net: net.rssi, reverse=True)
         for network in self.networks:
-            self.print(f'ssid: {network.ssid}\t rssi:{network.rssi}')
+            self.log.info(f'ssid: {network.ssid}\t rssi:{network.rssi}')
 
 
     def wifi_connect(self):
@@ -203,16 +206,16 @@ class Mcu():
             if strongest_ssid in secrets["networks"]:
                 ssid = strongest_ssid
                 password = secrets["networks"][ssid]
-                self.print('Using strongest wifi network')
+                self.log.info('Using strongest wifi network')
         except Exception as e:
             self.log_exception(e)
 
         while True:
             try:
-                self.print(f'Wifi: {ssid}')
+                self.log.info(f'Wifi: {ssid}')
                 self.display_text(f'Wifi: {ssid}')
                 wifi.radio.connect(ssid, password)
-                self.print("Wifi Connected")
+                self.log.info("Wifi Connected")
                 self.display_text("Wifi Connected")
                 self.pixel[0] = self.pixel.CYAN
                 self.wifi_connected = True
@@ -262,7 +265,7 @@ class Mcu():
         self.io.on_message = self.aio_message_callback
 
         # Connect to Adafruit IO
-        self.print("Adafruit IO...")
+        self.log.info("Adafruit IO...")
         self.display_text("Adafruit IO...")
         try:
             self.io.connect()
@@ -297,7 +300,7 @@ class Mcu():
         # This is a good place to subscribe to feed changes.  The client parameter
         # passed to this function is the Adafruit IO MQTT client so you can make
         # calls against it easily.
-        self.print("Connected to AIO")
+        self.log.info("Connected to AIO")
         self.display_text("Connected to AIO")
         self.aio_connected = True
         self.pixel[0] = self.pixel.MAGENTA
@@ -310,7 +313,7 @@ class Mcu():
     def aio_subscribe_callback(self, client, userdata, topic, granted_qos):
         # This method is called when the client subscribes to a new feed.
         print(f"Subscribed to {topic} with QOS level {granted_qos}")
-        # self.print(f"Subscribed to {topic} with QOS level {granted_qos}")
+        # self.log.info(f"Subscribed to {topic} with QOS level {granted_qos}")
 
         # Not using logger in this callback, as errors were seen eg.
         # AdafruitIO_MQTTError: MQTT Error: Unable to connect to Adafruit IO.
@@ -318,12 +321,12 @@ class Mcu():
 
     def aio_unsubscribe_callback(self, client, userdata, topic, pid):
         # This method is called when the client unsubscribes from a feed.
-        self.print(f"Unsubscribed from {topic} with PID {pid}")
+        self.log.info(f"Unsubscribed from {topic} with PID {pid}")
 
     # pylint: disable=unused-argument
     def aio_disconnected_callback(self, client):
         # Disconnected function will be called when the client disconnects.
-        self.print("Disconnected from Adafruit IO!")
+        self.log.info("Disconnected from Adafruit IO!")
         self.aio_connected = False
 
 
@@ -339,7 +342,7 @@ class Mcu():
             print(f'got OTA request {payload}')
             self.ota_requested = True # Can't fetch OTA in a callback, causes SSL errors.
         else:
-            self.print(f"{feed_id} = {payload}")
+            self.log.info(f"{feed_id} = {payload}")
             self.feeds[feed_id] = payload
 
 
@@ -368,30 +371,58 @@ class Mcu():
                     # https://github.com/adafruit/Adafruit_CircuitPython_MiniMQTT/issues/101
                     self.log.warning(f"{e}, ignoring")
                 except IndexError as e:
+                    self.log.info(e)
                     self.log.warning(f'AIO feed limit may have been reached')
                 except Exception as e:
                     self.log_exception(e)
                     self.log.warning(f'AIO receive error, trying longer timeout')
                     self.io.loop(timeout=0.5) 
 
-    def aio_send(self, feeds, group=None, location=None):
+    def aio_send_log(self):
+        if self.logdata:
+            if self.aio_connected:
+                if not self.aio_throttled:
+
+                    chunks = []
+                    while (len(self.logdata) > 1023):
+                        chunks.append(self.logdata[:1023])
+                        self.logdata = self.logdata[1023:]
+                    chunks.append(self.logdata[:1023])
+                    self.log.info(f"Publishing logdata to AIO in {len(chunks)} chunks")
+
+                    try:
+                        if self.aio_group:
+                            full_name = f'{self.aio_group}.log'
+                        else:
+                            full_name = 'log'
+
+                        for c in chunks:
+                            self.io.publish(full_name, c)
+                        self.logdata = None
+
+                    except Exception as e:
+                        self.log_exception(e)
+                        self.log.error(f"Error publishing logdata to AIO")
+                        raise
+                
+    def aio_send(self, feeds, location=None):
         if self.aio_connected:
             if not self.aio_throttled:
                 if (time.monotonic() - self.timer_publish) >= self.aio_interval_minimum:
                     self.timer_publish = time.monotonic()
-                    self.print(f"Publishing to AIO:")
+                    self.log.info(f"Publishing to AIO:")
                     try:
                         for feed_id in sorted(feeds):
-                            if group:
-                                full_name = f'{group}.{feed_id}'
+                            if self.aio_group:
+                                full_name = f'{self.aio_group}.{feed_id}'
                                 # is_group = True
                             else:
                                 full_name = feed_id
                                 # is_group = False
                             self.io.publish(full_name, str(feeds[feed_id]), metadata=location)
-                            self.print(f"{feeds[feed_id]} --> {full_name}")
+                            self.log.info(f"{feeds[feed_id]} --> {full_name}")
                         if location:
-                            self.print(f"with location = {location}")
+                            self.log.info(f"with location = {location}")
 
                     except Exception as e:
                         self.log_exception(e)
@@ -405,7 +436,7 @@ class Mcu():
                         self.aio_interval_minimum = min_interval
 
                 else:
-                    self.print(f"Did not publish, aio_interval_minimum set to {self.aio_interval_minimum}s"
+                    self.log.info(f"Did not publish, aio_interval_minimum set to {self.aio_interval_minimum}s"
                                     +f" Time remaining: {int(self.aio_interval_minimum - (time.monotonic() - self.timer_publish))}s")
             else:
                 self.log.warning(f'Did not publish, throttled flag = {self.aio_throttled}')
@@ -427,6 +458,7 @@ class Mcu():
             vfs = storage.VfsFat(self.sdcard)
             storage.mount(vfs, "/sd")
             self.display_text('SD Card Mounted')
+            self.log.info('SD Card Mounted')
         except OSError:
             self.sdcard = None
             self.log.warning('SD Card not mounted')
@@ -440,7 +472,7 @@ class Mcu():
             for f in list:
                 filepath = f'{archive_dir}/{f}'
                 os.remove(filepath)
-                self.print(f'Deleted {filepath}')
+                self.log.info(f'Deleted {filepath}')
         except:
             self.log.warning(f'{dir} directory not found')
             return
@@ -478,7 +510,7 @@ class Mcu():
 
         newpath = f'{archive_dir}/{newfile}'
         os.rename(filepath, newpath)
-        self.print(f'{filepath} moved to {newpath}')
+        self.log.info(f'{filepath} moved to {newpath}')
 
     def display_text(self, text):
         if self.display:
@@ -561,13 +593,11 @@ class Mcu():
                 self.log.warning('OTA update requested, but CIRCUITPY not writable, skipping')
                 self.ota_requested = False
 
-    def print(self, string):
-        self.log.log(level=0, msg=string)
-
 class McuLogHandler(logging.Handler):
 
     def __init__(self, mcu_device):
-        self._device = mcu_device
+        self.device = mcu_device
+        self.boot_time = time.monotonic()
 
     def _emit(self, level, msg):
         """Generate the message and write it to the AIO Feed.
@@ -577,8 +607,15 @@ class McuLogHandler(logging.Handler):
 
         """
 
-        # if level == logging.INFO:
-        if level == 0:
+        if level == logging.INFO:
+
+            # This is a method to accumulate boot messages and send them in big chunks to AIO
+            if self.device.booting:
+                if not self.device.logdata:
+                    self.device.logdata = msg
+                else:
+                    self.device.logdata += '\n'+msg
+
             # Don't include the "INFO" in the string, because this used a lot,
             # and is effectively the default.
             text = msg
@@ -591,19 +628,19 @@ class McuLogHandler(logging.Handler):
         # Print to AIO, only if level is WARNING or higher
         #   AND we are connected to AIO, AND a logfeed has been specified
         #   AND we are not currently throttled
-        logfeed = self._device.aio_log_feed
-        group = self._device.aio_group
+        logfeed = self.device.aio_log_feed
+        group = self.device.aio_group
    
-        if (self._device.aio_connected 
+        if (self.device.aio_connected 
             and logfeed
-            and not self._device.aio_throttled
-            and level >= logging.INFO):
+            and not self.device.aio_throttled
+            and level >= logging.WARNING):
 
             try:
                 if group:
-                    self._device.io.publish(f'{group}.{logfeed}', text)
+                    self.device.io.publish(f'{group}.{logfeed}', text)
                 else:
-                    self._device.io.publish(logfeed, text)
+                    self.device.io.publish(logfeed, text)
             except Exception as e:
                 print(f'Error publishing to AIO log: {e}')
 
@@ -611,7 +648,7 @@ class McuLogHandler(logging.Handler):
         # only works if flash is set writable at boot time
         # try:
         #     with open('log.txt', 'a+') as f:
-        #         ts = self._device.get_timestamp() #timestamp from the RTC
+        #         ts = self.device.get_timestamp() #timestamp from the RTC
         #         text = f'{ts} {text}\r\n'
         #         f.write(text)
         # except OSError as e:
@@ -621,10 +658,10 @@ class McuLogHandler(logging.Handler):
 
         # Print to SDCARD log.txt with timestamp 
         # only works if attach_sd_card() function has been run.
-        if self._device.sdcard:
+        if self.device.sdcard:
             try:
                 with open('/sd/log.txt', 'a') as f:
-                    ts = self._device.get_timestamp() #timestamp from the RTC
+                    ts = self.device.get_timestamp() #timestamp from the RTC
                     text = f'{ts} {text}\r\n'
                     f.write(text)
             except OSError as e:
