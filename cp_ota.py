@@ -5,7 +5,11 @@ import wifi
 import dualbank
 from secrets import secrets
 import microcontroller
+import os
 
+print(os.uname())
+cp_version = os.uname()[2]
+print(f'{cp_version=}')
 print('connecting to wifi')
 wifi.radio.connect(secrets["ssid"], secrets["password"])
 print('wifi connected')
@@ -15,7 +19,14 @@ requests = adafruit_requests.Session(pool, ssl.create_default_context())
 
 # see https://github.com/adafruit/circuitpython/issues/6448
 
-url = 'https://adafruit-circuit-python.s3.amazonaws.com/bin/adafruit_feather_esp32s2/en_GB/adafruit-circuitpython-adafruit_feather_esp32s2-en_GB-7.3.0.bin'
+if cp_version == '7.2.5':
+    url = 'https://adafruit-circuit-python.s3.amazonaws.com/bin/adafruit_feather_esp32s2/en_GB/adafruit-circuitpython-adafruit_feather_esp32s2-en_GB-7.3.0.bin'
+    print('fetching version 7.3.0')
+
+if cp_version == '7.3.0':
+    url = 'https://adafruit-circuit-python.s3.amazonaws.com/bin/adafruit_feather_esp32s2/en_GB/adafruit-circuitpython-adafruit_feather_esp32s2-en_GB-7.2.5.bin'
+    print('fetching version 7.2.5')
+
 # url= 'https://adafruit-circuit-python.s3.amazonaws.com/bin/adafruit_feather_esp32s2/en_GB/adafruit-circuitpython-adafruit_feather_esp32s2-en_GB-7.2.5.bin'
 
 offset=65536
