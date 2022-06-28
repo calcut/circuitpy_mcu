@@ -30,7 +30,7 @@ import ssl
 import socketpool
 import adafruit_requests
 import adafruit_minimqtt.adafruit_minimqtt as MQTT
-from adafruit_io.adafruit_io import IO_MQTT
+from adafruit_io.adafruit_io import IO_MQTT, IO_HTTP, AdafruitIO_RequestError
 from adafruit_io.adafruit_io_errors import AdafruitIO_ThrottleError
 
 try:
@@ -72,6 +72,7 @@ class Mcu():
 
         # Real Time Clock in ESP32-S2 can be used to track timestamps
         self.rtc = rtc.RTC()
+        self.last_timesync = 0
 
         # Set up logging
         # See McuLogHandler for details
@@ -236,6 +237,39 @@ class Mcu():
         self.pool = socketpool.SocketPool(wifi.radio)
         self.requests = adafruit_requests.Session(self.pool, ssl.create_default_context())
 
+    def aio_setup_http(self, log_feed=None, group=None):
+        self.aio_log_feed = log_feed
+        self.aio_group = group 
+
+        username=secrets["aio_username"]
+        password=secrets["aio_key"]
+
+        self.io = IO_HTTP(username, password, self.requests)
+
+    def aio_loop_http(self):
+        self.watchdog.feed()
+
+        if time.monotonic() - self.last_timesync > 10:
+            unixtime = self.requests.get('https://io.adafruit.com/api/v2/time/seconds').text
+            self.rtc.datetime = time.localtime(int(unixtime[:10]))
+            self.log.info(f'RTC syncronised to {self.get_timestamp()}')
+            self.last_timesync = time.monotonic()
+
+        subscribed_feeds = ["ota", "tc1"]
+
+        for key in subscribed_feeds:
+            feed = self.io.get_feed(f"{self.aio_group}.{key}")
+            # if key in self.feeds:
+            self.feeds[key] = feed
+            print(f'{feed["name"]} = {feed["last_value"]}, updated at {feed["updated_at"]}')
+
+
+        
+
+
+
+
+    
 
     def aio_setup(self, log_feed=None, group=None):
 
