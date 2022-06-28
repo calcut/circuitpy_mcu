@@ -59,6 +59,7 @@ class Mcu():
         self.aio_group = None
         self.feeds = {} # A dict to store the incoming values of AIO feeds
         self.data = {} # A dict to store the outgoing values of data
+        self.subscribed_feeds = {}
         self.logdata = None # A str to accumulate non urgent logs to send to AIO periodically
         self.booting = False # a flag to indicate boot log messages should be recorded
         self.aio_interval_minimum = 2 #Just an initial value, will be updated in code
@@ -72,7 +73,7 @@ class Mcu():
 
         # Real Time Clock in ESP32-S2 can be used to track timestamps
         self.rtc = rtc.RTC()
-        self.last_timesync = 0
+        self.last_aiosync = 0
 
         # Set up logging
         # See McuLogHandler for details
@@ -246,30 +247,40 @@ class Mcu():
 
         self.io = IO_HTTP(username, password, self.requests)
 
-    def aio_loop_http(self):
+    def aio_loop_http(self, interval=10):
         self.watchdog.feed()
 
-        if time.monotonic() - self.last_timesync > 10:
-            unixtime = self.requests.get('https://io.adafruit.com/api/v2/time/seconds').text
-            self.rtc.datetime = time.localtime(int(unixtime[:10]))
-            self.log.info(f'RTC syncronised to {self.get_timestamp()}')
-            self.last_timesync = time.monotonic()
+        if time.monotonic() - self.last_aiosync > interval:
+            self.last_aiosync = time.monotonic()
 
-        subscribed_feeds = ["ota", "tc1"]
+            try:
+                unixtime = self.requests.get('https://io.adafruit.com/api/v2/time/seconds').text
+                self.rtc.datetime = time.localtime(int(unixtime[:10]))
+                self.log.info(f'RTC syncronised to {self.get_timestamp()}')
 
-        for key in subscribed_feeds:
-            feed = self.io.get_feed(f"{self.aio_group}.{key}")
-            # if key in self.feeds:
-            self.feeds[key] = feed
-            print(f'{feed["name"]} = {feed["last_value"]}, updated at {feed["updated_at"]}')
+                for key in self.subscribed_feeds.keys():
+                    feed = self.io.get_feed(f'{self.aio_group}.{key}')
+
+                    tm_str = feed["updated_at"]
+                    time_tuple = (int(tm_str[0:4]),
+                                  int(tm_str[5:7]),
+                                  int(tm_str[8:10]), 
+                                  int(tm_str[11:13]),
+                                  int(tm_str[14:16]),
+                                  int(tm_str[17:19]),
+                                  -1, -1, -1)
 
 
-        
+                    self.subscribed_feeds[key] = {
+                        "last_value" : feed["last_value"],
+                        "updated_at" : feed["updated_at"]
+                    }
+                self.log.debug(f'{self.subscribed_feeds=}')
 
 
 
-
-    
+            except Exception as e:
+                self.log_exception(e)
 
     def aio_setup(self, log_feed=None, group=None):
 
@@ -307,6 +318,10 @@ class Mcu():
             self.log_exception(e)
             time.sleep(2)
 
+    def subscribe_http(self, feed):
+        # Subscribe to a feed from Adafruit IO
+
+        self.subscribed_feeds[feed] = None
    
     def subscribe(self, feed):
         # Subscribe to a feed from Adafruit IO
