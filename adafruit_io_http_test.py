@@ -22,7 +22,7 @@ timer_a = 0
 while True:
     mcu.aio_loop_http()
 
-    if time.monotonic() - timer_a > 0.5:
+    if time.monotonic() - timer_a > 5:
         timer_a = time.monotonic()
         mcu.aio_send_http({'temperature' : 4,
                             'tc2'        : 2,   
