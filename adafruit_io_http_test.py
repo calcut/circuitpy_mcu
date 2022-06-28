@@ -18,6 +18,13 @@ mcu.log.setLevel(LOGLEVEL)
 mcu.subscribe_http('ota')
 mcu.subscribe_http('tc1')
 
-
+timer_a = 0
 while True:
     mcu.aio_loop_http()
+
+    if time.monotonic() - timer_a > 0.5:
+        timer_a = time.monotonic()
+        mcu.aio_send_http({'temperature' : 4,
+                            'tc2'        : 2,   
+                            })
+

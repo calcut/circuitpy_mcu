@@ -59,7 +59,8 @@ class Mcu():
         self.aio_group = None
         self.feeds = {} # A dict to store the incoming values of AIO feeds
         self.data = {} # A dict to store the outgoing values of data
-        self.subscribed_feeds = {}
+        self.subscribed_feeds = {} # a dict to showing which feeds to pull via http, including last update time
+        self.updated_feeds = {} # a list of recently modified feeds, for ready for parsing.
         self.logdata = None # A str to accumulate non urgent logs to send to AIO periodically
         self.booting = False # a flag to indicate boot log messages should be recorded
         self.aio_interval_minimum = 2 #Just an initial value, will be updated in code
@@ -250,6 +251,12 @@ class Mcu():
     def aio_loop_http(self, interval=10):
         self.watchdog.feed()
 
+        if self.aio_throttled:
+            if (time.monotonic() - self.timer_throttled) >= 30:
+                # Reset the throttled flag if it has been over 30s
+                self.aio_throttled = False
+                self.log.warning(f'AIO throttle flag released. minimum interval currently {self.aio_interval_minimum}')
+
         if time.monotonic() - self.last_aiosync > interval:
             self.last_aiosync = time.monotonic()
 
@@ -270,14 +277,23 @@ class Mcu():
                                   int(tm_str[17:19]),
                                   -1, -1, -1)
 
+                    this_update = time.struct_time(time_tuple)
+
+                    # Maintain a list of recently modified feeds, for ready for parsing.
+                    try:
+                        previous_update = self.subscribed_feeds[key]["updated_at"]
+
+                        if this_update > previous_update:
+                            self.updated_feeds[key] = feed["last_value"]
+                            self.log.info(f'{key} = {feed["last_value"]}')
+
+                    except TypeError:
+                        self.log.debug('No previous value found')
 
                     self.subscribed_feeds[key] = {
                         "last_value" : feed["last_value"],
-                        "updated_at" : feed["updated_at"]
+                        "updated_at" : this_update
                     }
-                self.log.debug(f'{self.subscribed_feeds=}')
-
-
 
             except Exception as e:
                 self.log_exception(e)
@@ -453,6 +469,53 @@ class Mcu():
                         self.log_exception(e)
                         self.log.error(f"Error publishing logdata to AIO")
                         raise
+
+    def aio_send_http(self, feeds, location=None):
+        if not self.aio_throttled:
+            if (time.monotonic() - self.timer_publish) >= self.aio_interval_minimum:
+                self.timer_publish = time.monotonic()
+
+                self.log.info(f"Publishing to AIO:")
+                for feed_id in sorted(feeds):
+                    try:
+                        full_name = f'{self.aio_group}.{feed_id}'
+                        data = str(feeds[feed_id])
+                        self.io.send_data(full_name, data, metadata=location)
+                        self.log.info(f"{feeds[feed_id]} --> {full_name}")
+
+                    except AdafruitIO_RequestError as e:
+                        # Probably because the feed does not exist, so create it and retry
+                        self.log.warning(str(e))
+                        self.io.create_feed_in_group(self.aio_group, feed_id)
+                        self.io.send_data(full_name, data, metadata=location)
+                        self.log.info(f"{feeds[feed_id]} --> {full_name}")
+
+                    except AdafruitIO_ThrottleError as e:
+                        self.log_exception(e)
+                        self.aio_interval_minimum += 1
+                        self.aio_throttled = True
+                        self.timer_throttled = time.monotonic()
+                        self.log.warning(f'AIO Throttled, increasing publish interval to {self.aio_interval_minimum}')
+
+                    except Exception as e:
+                        self.log_exception(e)
+                        self.log.error(f"Error publishing data to AIO")
+                        raise
+
+                if location:
+                    self.log.info(f"with location = {location}")
+
+                # Clamp the minimum interval based on number of feeds and a
+                # rate of 30 updates per minute for AIO free version.
+                min_interval = (2 * len(feeds) +1)
+                if self.aio_interval_minimum < min_interval:
+                    self.aio_interval_minimum = min_interval
+
+            else:
+                self.log.info(f"Did not publish, aio_interval_minimum set to {self.aio_interval_minimum}s"
+                                +f" Time remaining: {int(self.aio_interval_minimum - (time.monotonic() - self.timer_publish))}s")
+        else:
+            self.log.warning(f'Did not publish, throttled flag = {self.aio_throttled}')
                 
     def aio_send(self, feeds, location=None):
         if self.aio_connected:
