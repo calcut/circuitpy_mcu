@@ -68,7 +68,6 @@ class Mcu():
         self.sdcard = None
         self.display = None
         self.serial_buffer = ''
-        self.ota_requested = False
 
         # Real Time Clock in ESP32-S2 can be used to track timestamps
         self.rtc = rtc.RTC()
@@ -246,6 +245,7 @@ class Mcu():
 
         self.io = IO_HTTP(username, password, self.requests)
         self.aio_connected = True
+        self.subscribe(f'ota')
 
 
     def aio_receive(self, interval=10):
@@ -563,15 +563,13 @@ class Mcu():
             
             return line
 
-    def ota_check(self):
-        if self.ota_requested:
-            if self.writable_check():
-                self.log.warning('OTA update requested, resetting')
-                time.sleep(1)
-                microcontroller.reset()
-            else:
-                self.log.warning('OTA update requested, but CIRCUITPY not writable, skipping')
-                self.ota_requested = False
+    def ota_reboot(self):
+        if self.writable_check():
+            self.log.warning('OTA update requested, resetting')
+            time.sleep(1)
+            microcontroller.reset()
+        else:
+            self.log.warning('OTA update requested, but CIRCUITPY not writable, skipping')
 
 class McuLogHandler(logging.Handler):
 
