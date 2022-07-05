@@ -18,7 +18,7 @@ mcu.wifi_connect()
 mcu.log.setLevel(LOGLEVEL)
 
 aio = Aio_http(mcu.requests, group=AIO_GROUP, loghandler=mcu.loghandler)
-
+mcu.loghandler.aio = aio
 
 # aio.log.addHandler(mcu.loghandler)
 # aio.log.setLevel(LOGLEVEL)
@@ -40,3 +40,4 @@ while True:
     aio.publish_feeds(feeds, interval=10)
     time.sleep(1)
     print(mcu.get_timestamp())
+    mcu.log.warning('log test test')

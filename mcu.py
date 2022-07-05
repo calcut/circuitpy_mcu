@@ -29,8 +29,6 @@ import wifi
 import ssl
 import socketpool
 import adafruit_requests
-from adafruit_io.adafruit_io import IO_HTTP, AdafruitIO_RequestError
-from adafruit_io.adafruit_io_errors import AdafruitIO_ThrottleError
 
 try:
     from secrets import secrets
@@ -51,18 +49,15 @@ __repo__ = "https://github.com/calcut/circuitpy-mcu"
 class Mcu():
     def __init__(self, i2c_freq=50000, i2c_lookup=None, uart_baud=None, watchdog_timeout=None):
 
+        uid = microcontroller.cpu.uid
+        self.id = f'{uid[-2]:02x}{uid[-1]:02x}'
+
         # Initialise some key variables
         self.wifi_connected = False
         self.aio_log_feed = None
-        self.aio_group = 'Default'
-        self.aio_connected = False
         self.data = {} # A dict to store the outgoing values of data
-        self.subscribed_feeds = {} # a dict to showing which feeds to pull via http, including last update time
-        self.updated_feeds = {} # a list of recently modified feeds, for ready for parsing.
         self.logdata = None # A str to accumulate non urgent logs to send to AIO periodically
         self.booting = False # a flag to indicate boot log messages should be recorded
-        self.aio_interval_minimum = 2 #Just an initial value, will be updated in code
-        self.aio_throttled = False
         self.timer_publish = time.monotonic()
         self.timer_throttled = time.monotonic()
         self.sdcard = None
@@ -71,7 +66,6 @@ class Mcu():
 
         # Real Time Clock in ESP32-S2 can be used to track timestamps
         self.rtc = rtc.RTC()
-        self.last_aiosync = 0
 
         # Set up logging
         # See McuLogHandler for details
@@ -110,7 +104,6 @@ class Mcu():
         self.led = digitalio.DigitalInOut(board.LED)
         self.led.direction = digitalio.Direction.OUTPUT
         self.led.value = False
-
 
 
     def log_exception(self, e):
@@ -235,190 +228,6 @@ class Mcu():
 
         self.pool = socketpool.SocketPool(wifi.radio)
         self.requests = adafruit_requests.Session(self.pool, ssl.create_default_context())
-
-    def aio_setup(self, log_feed=None, group=None):
-        self.aio_log_feed = log_feed
-        self.aio_group = group 
-
-        username=secrets["aio_username"]
-        password=secrets["aio_key"]
-
-        self.io = IO_HTTP(username, password, self.requests)
-        self.aio_connected = True
-        self.subscribe(f'ota')
-
-
-    def aio_receive(self, interval=10):
-        # Recommend not subscribing to many feeds as it could slow down performance a lot.
-        self.watchdog.feed()
-
-        if self.aio_throttled:
-            if (time.monotonic() - self.timer_throttled) >= 30:
-                # Reset the throttled flag if it has been over 30s
-                self.aio_throttled = False
-                self.log.warning(f'AIO throttle flag released. minimum interval currently {self.aio_interval_minimum}')
-
-        if time.monotonic() - self.last_aiosync > interval:
-            self.last_aiosync = time.monotonic()
-
-            try:
-                unixtime = self.requests.get('https://io.adafruit.com/api/v2/time/seconds').text
-                self.rtc.datetime = time.localtime(int(unixtime[:10]))
-                self.log.info(f'RTC syncronised to {self.get_timestamp()}')
-
-                for key in self.subscribed_feeds.keys():
-                    try:
-                        feed = self.io.get_feed(f'{self.aio_group}.{key}')
-                    except AdafruitIO_RequestError as e:
-                        cause = e.args[0]
-                        if cause[18:21] == '404':
-                            self.log.info(f'{key} not found in {self.aio_group}, creating')
-                            self.io.create_feed_in_group(self.aio_group, key)
-                        else:
-                            self.log_exception(e)                    
-
-                    tm_str = feed["updated_at"]
-                    time_tuple = (int(tm_str[0:4]),
-                                  int(tm_str[5:7]),
-                                  int(tm_str[8:10]), 
-                                  int(tm_str[11:13]),
-                                  int(tm_str[14:16]),
-                                  int(tm_str[17:19]),
-                                  -1, -1, -1)
-
-                    this_update = time.struct_time(time_tuple)
-
-                    # Maintain a list of recently modified feeds, for ready for parsing.
-                    try:
-                        previous_update = self.subscribed_feeds[key]["updated_at"]
-
-                        if this_update > previous_update:
-                            self.updated_feeds[key] = feed["last_value"]
-                            self.log.info(f'{key} = {feed["last_value"]}')
-
-                    except TypeError:
-                        self.log.debug('No previous value found')
-
-                    self.subscribed_feeds[key] = {
-                        "last_value" : feed["last_value"],
-                        "updated_at" : this_update
-                    }
-
-            except Exception as e:
-                self.log_exception(e)
-
-    def subscribe(self, key):
-        # Subscribe to a feed from Adafruit IO
-        if self.aio_connected:
-            try:
-                full_name = f'{self.aio_group}.{key}'
-                feed = self.io.create_and_get_feed(full_name)
-                tm_str = feed["updated_at"]
-                time_tuple = (int(tm_str[0:4]),
-                                int(tm_str[5:7]),
-                                int(tm_str[8:10]), 
-                                int(tm_str[11:13]),
-                                int(tm_str[14:16]),
-                                int(tm_str[17:19]),
-                                -1, -1, -1)
-
-                this_update = time.struct_time(time_tuple)
-                self.subscribed_feeds[key] = {
-                        "last_value" : feed["last_value"],
-                        "updated_at" : this_update
-                    }
-            except Exception as e:
-                self.log_exception(e)
-
-
-
-    def aio_send_log(self):
-        if self.logdata:
-            if not self.aio_throttled:
-
-                chunks = []
-                while (len(self.logdata) > 1023):
-                    chunks.append(self.logdata[:1023])
-                    self.logdata = self.logdata[1023:]
-                chunks.append(self.logdata[:1023])
-                self.log.info(f"Publishing logdata to AIO in {len(chunks)} chunks")
-
-                try:
-                    full_name = f'{self.aio_group}.log'
-                    for c in chunks:
-                        self.io.send_data(full_name, c)
-                    self.logdata = None
-
-                except AdafruitIO_RequestError as e:
-                    cause = e.args[0]
-                    if cause[18:21] == '400':
-                        self.log.error('AIO feed limit reached')
-
-                    elif cause[18:21] == '404':
-                        #May also be caused by group not being found??
-                        self.log.info('Log Feed not found, creating')
-                        self.io.create_feed_in_group(self.aio_group, 'log')
-                    else:
-                        self.log_exception(e)
-                    
-
-                except Exception as e:
-                    self.log_exception(e)
-                    self.log.error(f"Error publishing logdata to AIO")
-                    raise
-
-    def aio_send(self, feeds, location=None):
-        if not self.aio_throttled:
-            if (time.monotonic() - self.timer_publish) >= self.aio_interval_minimum:
-                self.timer_publish = time.monotonic()
-
-                self.log.info(f"Publishing to AIO:")
-                for feed_id in sorted(feeds):
-                    try:
-                        full_name = f'{self.aio_group}.{feed_id}'
-                        data = str(feeds[feed_id])
-                        self.io.send_data(full_name, data, metadata=location)
-                        self.log.info(f"{feeds[feed_id]} --> {full_name}")
-
-                    except AdafruitIO_RequestError as e:
-                        cause = e.args[0]
-                        if cause[18:21] == '400':
-                            self.log.error('AIO feed limit reached')
-                            self.log.error(str(e))
-
-                        elif cause[18:21] == '404':
-                            #May also be caused by group not being found??
-                            self.log.warning(f'{feed_id} not found in {self.aio_group}, creating')
-                            self.io.create_feed_in_group(self.aio_group, feed_id)
-                        else:
-                            self.log_exception(e)
-
-                    except AdafruitIO_ThrottleError as e:
-                        self.log_exception(e)
-                        self.aio_interval_minimum += 1
-                        self.aio_throttled = True
-                        self.timer_throttled = time.monotonic()
-                        self.log.warning(f'AIO Throttled, increasing publish interval to {self.aio_interval_minimum}')
-
-                    except Exception as e:
-                        self.log_exception(e)
-                        self.log.error(f"Error publishing data to AIO")
-                        raise
-
-                if location:
-                    self.log.info(f"with location = {location}")
-
-                # Clamp the minimum interval based on number of feeds and a
-                # rate of 30 updates per minute for AIO free version.
-                min_interval = (2 * len(feeds) +1)
-                if self.aio_interval_minimum < min_interval:
-                    self.aio_interval_minimum = min_interval
-
-            else:
-                self.log.info(f"Did not publish, aio_interval_minimum set to {self.aio_interval_minimum}s"
-                                +f" Time remaining: {int(self.aio_interval_minimum - (time.monotonic() - self.timer_publish))}s")
-        else:
-            self.log.warning(f'Did not publish, throttled flag = {self.aio_throttled}')
                 
 
     def get_timestamp(self):
@@ -574,6 +383,7 @@ class Mcu():
 class McuLogHandler(logging.Handler):
 
     def __init__(self, mcu_device):
+        self.aio = None # This can be passed later after aio connection is established
         self.device = mcu_device
         self.boot_time = time.monotonic()
 
@@ -604,18 +414,15 @@ class McuLogHandler(logging.Handler):
         print(text)
 
         # Print to AIO, only if level is WARNING or higher
-        #   AND we are connected to AIO, AND a logfeed has been specified
+        #   AND we are connected to AIO
         #   AND we are not currently throttled
-        logfeed = self.device.aio_log_feed
-        group = self.device.aio_group
-   
-        if (self.device.aio_connected 
-            and logfeed
-            and not self.device.aio_throttled
+        if (self.aio 
+            and not self.aio.throttled
             and level >= logging.WARNING):
-
+            
             try:
-                self.device.io.send_data(f'{group}.{logfeed}', text)
+                print('debug - sending log to AIO')
+                self.aio.send_data(f'{self.aio.group}.log', text)
             except Exception as e:
                 print(f'Error publishing to AIO log: {e}')
 

@@ -2,30 +2,9 @@
 # System and timing
 import time
 import rtc
-import microcontroller
-from watchdog import WatchDogMode, WatchDogTimeout
-import supervisor
-import gc
-import usb_cdc
 import adafruit_logging as logging
 import traceback
-import os
-# from adafruit_logging import LoggingHandler
 
-# On-board hardware
-import board
-import neopixel
-import busio
-import digitalio
-import analogio
-import adafruit_sdcard
-import storage
-
-# Networking
-import wifi
-import ssl
-import socketpool
-import adafruit_requests
 from adafruit_io.adafruit_io import IO_HTTP, AdafruitIO_RequestError
 from adafruit_io.adafruit_io_errors import AdafruitIO_ThrottleError
 
@@ -34,13 +13,6 @@ try:
 except ImportError:
     print("WiFi secrets are kept in secrets.py, please add them there!")
     raise
-
-try:
-    # Import Known display types
-    from circuitpy_mcu.display import LCD_16x2, LCD_20x4
-except:
-    pass
-
 
 __version__ = "0.0.0-auto.0"
 __repo__ = "https://github.com/calcut/circuitpy-mcu"
@@ -151,7 +123,7 @@ class Aio_http(IO_HTTP):
             try:
                 unixtime = self.requests.get('https://io.adafruit.com/api/v2/time/seconds').text
                 self.rtc.datetime = time.localtime(int(unixtime[:10]))
-                self.log.info(f'RTC syncronised')
+                self.log.debug(f'RTC syncronised')
 
                 for key in self.subscribed_feeds.keys():
 
@@ -187,6 +159,8 @@ class Aio_http(IO_HTTP):
 
             except Exception as e:
                 self.handle_exception(e)
+
+        return len(self.updated_feeds)
 
     def subscribe(self, feed_key):
         # Subscribe to a feed from Adafruit IO
