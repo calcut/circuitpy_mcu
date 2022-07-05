@@ -29,8 +29,7 @@ import wifi
 import ssl
 import socketpool
 import adafruit_requests
-import adafruit_minimqtt.adafruit_minimqtt as MQTT
-from adafruit_io.adafruit_io import IO_MQTT, IO_HTTP, AdafruitIO_RequestError
+from adafruit_io.adafruit_io import IO_HTTP, AdafruitIO_RequestError
 from adafruit_io.adafruit_io_errors import AdafruitIO_ThrottleError
 
 try:
@@ -54,12 +53,12 @@ class Mcu():
 
         # Initialise some key variables
         self.wifi_connected = False
-        self.aio_connected = False
         self.aio_log_feed = None
-        self.aio_group = None
-        self.feeds = {} # A dict to store the incoming values of AIO feeds
+        self.aio_group = 'Default'
+        self.aio_connected = False
         self.data = {} # A dict to store the outgoing values of data
-        self.subscribed_feeds = {}
+        self.subscribed_feeds = {} # a dict to showing which feeds to pull via http, including last update time
+        self.updated_feeds = {} # a list of recently modified feeds, for ready for parsing.
         self.logdata = None # A str to accumulate non urgent logs to send to AIO periodically
         self.booting = False # a flag to indicate boot log messages should be recorded
         self.aio_interval_minimum = 2 #Just an initial value, will be updated in code
@@ -69,7 +68,6 @@ class Mcu():
         self.sdcard = None
         self.display = None
         self.serial_buffer = ''
-        self.ota_requested = False
 
         # Real Time Clock in ESP32-S2 can be used to track timestamps
         self.rtc = rtc.RTC()
@@ -238,7 +236,7 @@ class Mcu():
         self.pool = socketpool.SocketPool(wifi.radio)
         self.requests = adafruit_requests.Session(self.pool, ssl.create_default_context())
 
-    def aio_setup_http(self, log_feed=None, group=None):
+    def aio_setup(self, log_feed=None, group=None):
         self.aio_log_feed = log_feed
         self.aio_group = group 
 
@@ -246,9 +244,19 @@ class Mcu():
         password=secrets["aio_key"]
 
         self.io = IO_HTTP(username, password, self.requests)
+        self.aio_connected = True
+        self.subscribe(f'ota')
 
-    def aio_loop_http(self, interval=10):
+
+    def aio_receive(self, interval=10):
+        # Recommend not subscribing to many feeds as it could slow down performance a lot.
         self.watchdog.feed()
+
+        if self.aio_throttled:
+            if (time.monotonic() - self.timer_throttled) >= 30:
+                # Reset the throttled flag if it has been over 30s
+                self.aio_throttled = False
+                self.log.warning(f'AIO throttle flag released. minimum interval currently {self.aio_interval_minimum}')
 
         if time.monotonic() - self.last_aiosync > interval:
             self.last_aiosync = time.monotonic()
@@ -259,7 +267,15 @@ class Mcu():
                 self.log.info(f'RTC syncronised to {self.get_timestamp()}')
 
                 for key in self.subscribed_feeds.keys():
-                    feed = self.io.get_feed(f'{self.aio_group}.{key}')
+                    try:
+                        feed = self.io.get_feed(f'{self.aio_group}.{key}')
+                    except AdafruitIO_RequestError as e:
+                        cause = e.args[0]
+                        if cause[18:21] == '404':
+                            self.log.info(f'{key} not found in {self.aio_group}, creating')
+                            self.io.create_feed_in_group(self.aio_group, key)
+                        else:
+                            self.log_exception(e)                    
 
                     tm_str = feed["updated_at"]
                     time_tuple = (int(tm_str[0:4]),
@@ -270,225 +286,140 @@ class Mcu():
                                   int(tm_str[17:19]),
                                   -1, -1, -1)
 
+                    this_update = time.struct_time(time_tuple)
+
+                    # Maintain a list of recently modified feeds, for ready for parsing.
+                    try:
+                        previous_update = self.subscribed_feeds[key]["updated_at"]
+
+                        if this_update > previous_update:
+                            self.updated_feeds[key] = feed["last_value"]
+                            self.log.info(f'{key} = {feed["last_value"]}')
+
+                    except TypeError:
+                        self.log.debug('No previous value found')
 
                     self.subscribed_feeds[key] = {
                         "last_value" : feed["last_value"],
-                        "updated_at" : feed["updated_at"]
+                        "updated_at" : this_update
                     }
-                self.log.debug(f'{self.subscribed_feeds=}')
-
-
 
             except Exception as e:
                 self.log_exception(e)
 
-    def aio_setup(self, log_feed=None, group=None):
-
-        self.aio_log_feed = log_feed
-        self.aio_group = group
-
-        # Initialize a new MQTT Client object
-        self.mqtt_client = MQTT.MQTT(
-            broker="io.adafruit.com",
-            username=secrets["aio_username"],
-            password=secrets["aio_key"],
-            # socket_pool=self.pool,
-            # ssl_context=self.ssl_context,
-            socket_pool=self.pool,
-            ssl_context=ssl.create_default_context(),
-        )
-
-        # self.mqtt_client.connect()
-        # Initialize an Adafruit IO MQTT Client
-        self.io = IO_MQTT(self.mqtt_client)
-
-        # Connect the callback methods defined above to Adafruit IO
-        self.io.on_connect = self.aio_connected_callback
-        self.io.on_disconnect = self.aio_disconnected_callback
-        self.io.on_subscribe = self.aio_subscribe_callback
-        self.io.on_unsubscribe = self.aio_unsubscribe_callback
-        self.io.on_message = self.aio_message_callback
-
-        # Connect to Adafruit IO
-        self.log.info("Adafruit IO...")
-        self.display_text("Adafruit IO...")
-        try:
-            self.io.connect()
-        except Exception as e:
-            self.log_exception(e)
-            time.sleep(2)
-
-    def subscribe_http(self, feed):
+    def subscribe(self, key):
         # Subscribe to a feed from Adafruit IO
-
-        self.subscribed_feeds[feed] = None
-   
-    def subscribe(self, feed):
-        # Subscribe to a feed from Adafruit IO
-        try:
-            self.io.subscribe(feed)
-        except MemoryError as e:
-            self.log.warning(f"MemoryError: memory allocation failed while subscribing to {feed}, retrying")
-            time.sleep(1) #perhaps sleep time helps here?
-            self.io.subscribe(feed)
-
-        # Request latest value from the feed
-        try:
-            self.io.get(feed)
-        except MemoryError as e:
-                # https://github.com/adafruit/Adafruit_CircuitPython_MiniMQTT/issues/101
-                self.log.warning("MemoryError: memory allocation failed, ignoring")
-
-    def unsubscribe(self, feed):
-        # an unsubscribe method that mirrors the subscribe one
-        self.io.unsubscribe(feed)
-
-
-    def aio_connected_callback(self, client):
-        # Connected function will be called when the client is connected to Adafruit IO.
-        # This is a good place to subscribe to feed changes.  The client parameter
-        # passed to this function is the Adafruit IO MQTT client so you can make
-        # calls against it easily.
-        self.log.info("Connected to AIO")
-        self.display_text("Connected to AIO")
-        self.aio_connected = True
-        self.pixel[0] = self.pixel.MAGENTA
-        self.io.subscribe_to_time("seconds")
-        self.io.subscribe_to_throttling()
-        self.io.subscribe_to_errors()
-        if self.aio_group:
-            self.io.subscribe(f"{self.aio_group}.ota") #Listen for requests for over the air updates
-
-    def aio_subscribe_callback(self, client, userdata, topic, granted_qos):
-        # This method is called when the client subscribes to a new feed.
-        print(f"Subscribed to {topic} with QOS level {granted_qos}")
-        # self.log.info(f"Subscribed to {topic} with QOS level {granted_qos}")
-
-        # Not using logger in this callback, as errors were seen eg.
-        # AdafruitIO_MQTTError: MQTT Error: Unable to connect to Adafruit IO.
-        # Possibly related to logging to SD card taking too long?
-
-    def aio_unsubscribe_callback(self, client, userdata, topic, pid):
-        # This method is called when the client unsubscribes from a feed.
-        self.log.info(f"Unsubscribed from {topic} with PID {pid}")
-
-    # pylint: disable=unused-argument
-    def aio_disconnected_callback(self, client):
-        # Disconnected function will be called when the client disconnects.
-        self.log.info("Disconnected from Adafruit IO!")
-        self.aio_connected = False
-
-
-    def aio_message_callback(self, client, feed_id, payload):
-        # Message function will be called when a subscribed feed has a new value.
-        # The feed_id parameter identifies the feed, and the payload parameter has
-        # the new value.
-        self.got_mqtt_response = True
-        if feed_id == 'seconds':
-            self.rtc.datetime = time.localtime(int(payload))
-            # self.log.debug(f'RTC syncronised')
-        elif feed_id == f"{self.aio_group}.ota":
-            print(f'got OTA request {payload}')
-            self.ota_requested = True # Can't fetch OTA in a callback, causes SSL errors.
-        else:
-            self.log.info(f"{feed_id} = {payload}")
-            self.feeds[feed_id] = payload
-
-
-
-    def aio_receive(self):
         if self.aio_connected:
-            if self.aio_throttled:
-                if (time.monotonic() - self.timer_throttled) >= 30:
-                    # Reset the throttled flag if it has been over 30s
-                    self.aio_throttled = False
-                    self.log.warning(f'AIO throttle flag released. minimum interval currently {self.aio_interval_minimum}')
-            self.got_mqtt_response = True
-            while self.got_mqtt_response:
-                # https://github.com/adafruit/Adafruit_CircuitPython_MiniMQTT/issues/108
-                try:
-                    self.got_mqtt_response = False
-                    self.io.loop(timeout=0.5) #Is this too short a timeout??
-                except AdafruitIO_ThrottleError as e:
-                    self.log_exception(e)
-                    self.aio_interval_minimum += 1
-                    self.aio_throttled = True
-                    self.timer_throttled = time.monotonic()
-                    self.log.warning(f'AIO Throttled, increasing publish interval to {self.aio_interval_minimum}')
-                except MemoryError as e:
-                    # self.log_exception(e)
-                    # https://github.com/adafruit/Adafruit_CircuitPython_MiniMQTT/issues/101
-                    self.log.warning(f"{e}, ignoring")
-                except IndexError as e:
-                    self.log.info(e)
-                    self.log.warning(f'AIO feed limit may have been reached')
-                except Exception as e:
-                    self.log_exception(e)
-                    self.log.warning(f'AIO receive error, trying longer timeout')
-                    self.io.loop(timeout=0.5) 
+            try:
+                full_name = f'{self.aio_group}.{key}'
+                feed = self.io.create_and_get_feed(full_name)
+                tm_str = feed["updated_at"]
+                time_tuple = (int(tm_str[0:4]),
+                                int(tm_str[5:7]),
+                                int(tm_str[8:10]), 
+                                int(tm_str[11:13]),
+                                int(tm_str[14:16]),
+                                int(tm_str[17:19]),
+                                -1, -1, -1)
+
+                this_update = time.struct_time(time_tuple)
+                self.subscribed_feeds[key] = {
+                        "last_value" : feed["last_value"],
+                        "updated_at" : this_update
+                    }
+            except Exception as e:
+                self.log_exception(e)
+
+
 
     def aio_send_log(self):
         if self.logdata:
-            if self.aio_connected:
-                if not self.aio_throttled:
-
-                    chunks = []
-                    while (len(self.logdata) > 1023):
-                        chunks.append(self.logdata[:1023])
-                        self.logdata = self.logdata[1023:]
-                    chunks.append(self.logdata[:1023])
-                    self.log.info(f"Publishing logdata to AIO in {len(chunks)} chunks")
-
-                    try:
-                        if self.aio_group:
-                            full_name = f'{self.aio_group}.log'
-                        else:
-                            full_name = 'log'
-
-                        for c in chunks:
-                            self.io.publish(full_name, c)
-                        self.logdata = None
-
-                    except Exception as e:
-                        self.log_exception(e)
-                        self.log.error(f"Error publishing logdata to AIO")
-                        raise
-                
-    def aio_send(self, feeds, location=None):
-        if self.aio_connected:
             if not self.aio_throttled:
-                if (time.monotonic() - self.timer_publish) >= self.aio_interval_minimum:
-                    self.timer_publish = time.monotonic()
-                    self.log.info(f"Publishing to AIO:")
+
+                chunks = []
+                while (len(self.logdata) > 1023):
+                    chunks.append(self.logdata[:1023])
+                    self.logdata = self.logdata[1023:]
+                chunks.append(self.logdata[:1023])
+                self.log.info(f"Publishing logdata to AIO in {len(chunks)} chunks")
+
+                try:
+                    full_name = f'{self.aio_group}.log'
+                    for c in chunks:
+                        self.io.send_data(full_name, c)
+                    self.logdata = None
+
+                except AdafruitIO_RequestError as e:
+                    cause = e.args[0]
+                    if cause[18:21] == '400':
+                        self.log.error('AIO feed limit reached')
+
+                    elif cause[18:21] == '404':
+                        #May also be caused by group not being found??
+                        self.log.info('Log Feed not found, creating')
+                        self.io.create_feed_in_group(self.aio_group, 'log')
+                    else:
+                        self.log_exception(e)
+                    
+
+                except Exception as e:
+                    self.log_exception(e)
+                    self.log.error(f"Error publishing logdata to AIO")
+                    raise
+
+    def aio_send(self, feeds, location=None):
+        if not self.aio_throttled:
+            if (time.monotonic() - self.timer_publish) >= self.aio_interval_minimum:
+                self.timer_publish = time.monotonic()
+
+                self.log.info(f"Publishing to AIO:")
+                for feed_id in sorted(feeds):
                     try:
-                        for feed_id in sorted(feeds):
-                            if self.aio_group:
-                                full_name = f'{self.aio_group}.{feed_id}'
-                                # is_group = True
-                            else:
-                                full_name = feed_id
-                                # is_group = False
-                            self.io.publish(full_name, str(feeds[feed_id]), metadata=location)
-                            self.log.info(f"{feeds[feed_id]} --> {full_name}")
-                        if location:
-                            self.log.info(f"with location = {location}")
+                        full_name = f'{self.aio_group}.{feed_id}'
+                        data = str(feeds[feed_id])
+                        self.io.send_data(full_name, data, metadata=location)
+                        self.log.info(f"{feeds[feed_id]} --> {full_name}")
+
+                    except AdafruitIO_RequestError as e:
+                        cause = e.args[0]
+                        if cause[18:21] == '400':
+                            self.log.error('AIO feed limit reached')
+                            self.log.error(str(e))
+
+                        elif cause[18:21] == '404':
+                            #May also be caused by group not being found??
+                            self.log.warning(f'{feed_id} not found in {self.aio_group}, creating')
+                            self.io.create_feed_in_group(self.aio_group, feed_id)
+                        else:
+                            self.log_exception(e)
+
+                    except AdafruitIO_ThrottleError as e:
+                        self.log_exception(e)
+                        self.aio_interval_minimum += 1
+                        self.aio_throttled = True
+                        self.timer_throttled = time.monotonic()
+                        self.log.warning(f'AIO Throttled, increasing publish interval to {self.aio_interval_minimum}')
 
                     except Exception as e:
                         self.log_exception(e)
                         self.log.error(f"Error publishing data to AIO")
                         raise
 
-                    # Clamp the minimum interval based on number of feeds and a
-                    # rate of 30 updates per minute for AIO free version.
-                    min_interval = (2 * len(feeds) +1)
-                    if self.aio_interval_minimum < min_interval:
-                        self.aio_interval_minimum = min_interval
+                if location:
+                    self.log.info(f"with location = {location}")
 
-                else:
-                    self.log.info(f"Did not publish, aio_interval_minimum set to {self.aio_interval_minimum}s"
-                                    +f" Time remaining: {int(self.aio_interval_minimum - (time.monotonic() - self.timer_publish))}s")
+                # Clamp the minimum interval based on number of feeds and a
+                # rate of 30 updates per minute for AIO free version.
+                min_interval = (2 * len(feeds) +1)
+                if self.aio_interval_minimum < min_interval:
+                    self.aio_interval_minimum = min_interval
+
             else:
-                self.log.warning(f'Did not publish, throttled flag = {self.aio_throttled}')
+                self.log.info(f"Did not publish, aio_interval_minimum set to {self.aio_interval_minimum}s"
+                                +f" Time remaining: {int(self.aio_interval_minimum - (time.monotonic() - self.timer_publish))}s")
+        else:
+            self.log.warning(f'Did not publish, throttled flag = {self.aio_throttled}')
+                
 
     def get_timestamp(self):
         t = self.rtc.datetime
@@ -632,15 +563,13 @@ class Mcu():
             
             return line
 
-    def ota_check(self):
-        if self.ota_requested:
-            if self.writable_check():
-                self.log.warning('OTA update requested, resetting')
-                time.sleep(1)
-                microcontroller.reset()
-            else:
-                self.log.warning('OTA update requested, but CIRCUITPY not writable, skipping')
-                self.ota_requested = False
+    def ota_reboot(self):
+        if self.writable_check():
+            self.log.warning('OTA update requested, resetting')
+            time.sleep(1)
+            microcontroller.reset()
+        else:
+            self.log.warning('OTA update requested, but CIRCUITPY not writable, skipping')
 
 class McuLogHandler(logging.Handler):
 
@@ -686,10 +615,7 @@ class McuLogHandler(logging.Handler):
             and level >= logging.WARNING):
 
             try:
-                if group:
-                    self.device.io.publish(f'{group}.{logfeed}', text)
-                else:
-                    self.device.io.publish(logfeed, text)
+                self.device.io.send_data(f'{group}.{logfeed}', text)
             except Exception as e:
                 print(f'Error publishing to AIO log: {e}')
 
