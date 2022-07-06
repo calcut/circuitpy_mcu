@@ -8,6 +8,7 @@ import neopixel
 import microcontroller
 from watchdog import WatchDogMode, WatchDogTimeout
 import traceback
+import supervisor
 
 # import dualbank
 import time
@@ -19,18 +20,43 @@ except ImportError:
     print("WiFi secrets are kept in secrets.py, please add them there!")
     raise
 
+def enable_watchdog(timeout=20):
+    # Setup a watchdog to reset the device if it stops responding.
+    watchdog = microcontroller.watchdog
+    watchdog.timeout=timeout #seconds
+    # watchdog.mode = WatchDogMode.RESET # This does a hard reset
+    watchdog.mode = WatchDogMode.RAISE # This raises an exception
+    watchdog.feed()
+    print(f'Watchdog enabled with timeout = {timeout}s')
+
+
+def reset(detail):
+    print(detail)
+    try:
+        # Only works if SD card was previously mounted
+        with open('/sd/log.txt', 'a') as f:
+            f.write(detail)
+            print('logged exception to /sd/log.txt')
+
+    except Exception as e:
+            print(f'Unable to save exception details to SD card, {e}')
+
+    try:
+        if supervisor.runtime.usb_connected:
+            print('USB connected, performing soft reset in 15s')
+            time.sleep(15)
+            supervisor.reload()
+        else:
+            print('Performing a hard reset')
+            microcontroller.reset()
+    except WatchDogTimeout:
+        print('watchdog timeout during reset, performing hard reset')
+        microcontroller.reset()
 
 class Bootloader():
 
-    def __init__(self, url, watchdog_timeout=20):
-
-        # Setup a watchdog to reset the device if it stops responding.
-        self.watchdog = microcontroller.watchdog
-        self.watchdog.timeout=watchdog_timeout #seconds
-        # watchdog.mode = WatchDogMode.RESET # This does a hard reset
-        self.watchdog.mode = WatchDogMode.RAISE # This prints a message then does a soft reset
-        self.watchdog.feed()
-        print(f'Watchdog enabled with timeout = {self.watchdog.timeout}s')
+    def __init__(self, url):
+        microcontroller.watchdog.feed()
 
         try:
             from sparkfun_serlcd import Sparkfun_SerLCD_I2C
@@ -135,7 +161,7 @@ class Bootloader():
                 wifi.radio.connect(ssid, password)
                 print("Wifi Connected")
                 self.wifi_connected = True
-                self.watchdog.feed()
+                microcontroller.watchdog.feed()
                 break
             except ConnectionError as e:
                 print(e)
@@ -190,7 +216,7 @@ class Bootloader():
             ota_list = response.json()
 
             for path, item_url in ota_list.items():
-                self.watchdog.feed()
+                microcontroller.watchdog.feed()
                 self.mkdir_parents(path)
                 print(f'saving {item_url} to {path}')
                 url_list = item_url.split('/')
