@@ -6,7 +6,6 @@
 import time
 import rtc
 import microcontroller
-from watchdog import WatchDogMode, WatchDogTimeout
 import supervisor
 import gc
 import usb_cdc
@@ -47,7 +46,7 @@ __version__ = "0.0.0-auto.0"
 __repo__ = "https://github.com/calcut/circuitpy-mcu"
 
 class Mcu():
-    def __init__(self, i2c_freq=50000, i2c_lookup=None, uart_baud=None, watchdog_timeout=None):
+    def __init__(self, i2c_freq=50000, i2c_lookup=None, uart_baud=None):
 
         uid = microcontroller.cpu.uid
         self.id = f'{uid[-2]:02x}{uid[-1]:02x}'
@@ -73,10 +72,6 @@ class Mcu():
         self.loghandler = McuLogHandler(self)
         self.log.addHandler(self.loghandler)
         self.log.level = logging.INFO
-
-        # Use a watchdog to detect if the code has got stuck anywhere
-        if watchdog_timeout:
-            self.enable_watchdog(watchdog_timeout)
 
         # Pull the I2C power pin low to enable I2C power
         self.log.info('Powering up I2C bus')
@@ -110,15 +105,6 @@ class Mcu():
         # formats an exception to print to log as an error,
         # includues the traceback (to show code line number)
         self.log.error(traceback.format_exception(None, e, e.__traceback__))
-
-    def enable_watchdog(self, timeout=20):
-        # Setup a watchdog to reset the device if it stops responding.
-        self.watchdog = microcontroller.watchdog
-        self.watchdog.timeout=timeout #seconds
-        # watchdog.mode = WatchDogMode.RESET # This does a hard reset
-        self.watchdog.mode = WatchDogMode.RAISE # This prints a message then does a soft reset
-        self.watchdog.feed()
-        self.log.info(f'Watchdog enabled with timeout = {self.watchdog.timeout}s')
 
     def i2c_power_on(self):
         # Due to board rev B/C differences, need to read the initial state
@@ -212,7 +198,7 @@ class Mcu():
                 self.display_text("Wifi Connected")
                 self.pixel[0] = self.pixel.CYAN
                 self.wifi_connected = True
-                self.watchdog.feed()
+                microcontroller.watchdog.feed()
                 break
             except ConnectionError as e:
                 self.log_exception(e)
@@ -370,7 +356,7 @@ class Mcu():
         while True:
             line = None
             while not line:
-                self.watchdog.feed()
+                microcontroller.watchdog.feed()
                 line = self.read_serial()
 
             if valid_inputs:
