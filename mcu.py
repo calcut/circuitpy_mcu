@@ -298,6 +298,14 @@ class Mcu():
                 break
 
         newpath = f'{archive_dir}/{newfile}'
+
+        with open(filepath, 'r') as f:
+            lines = f.readlines()
+            self.log.info(f'---Last 10 lines of previous log {filepath}---')
+            for l in lines[-10:]:
+                self.log.info(l[:-1])
+            self.log.info('--End of Previous log---')
+
         os.rename(filepath, newpath)
         self.log.info(f'{filepath} moved to {newpath}')
 
