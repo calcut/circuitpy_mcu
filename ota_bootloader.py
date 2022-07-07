@@ -83,7 +83,9 @@ class Bootloader():
             self.display = None
 
         try:
-            self.get_ota_list(url) 
+            self.get_ota_list(url)
+            i2c_power.deinit()
+            i2c.deinit()
 
         except WatchDogTimeout:
             print('Code Stopped by WatchDog Timeout during OTA update!')
