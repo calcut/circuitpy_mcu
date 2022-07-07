@@ -50,6 +50,9 @@ __repo__ = "https://github.com/calcut/circuitpy-mcu"
 
 class Mcu():
     def __init__(self, i2c_freq=50000, i2c_lookup=None, uart_baud=None, watchdog_timeout=None):
+        
+        uid = microcontroller.cpu.uid
+        self.id = f'{uid[-2]:02x}{uid[-1]:02x}'
 
         # Initialise some key variables
         self.wifi_connected = False
