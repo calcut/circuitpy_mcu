@@ -100,6 +100,8 @@ class Mcu():
         self.led.direction = digitalio.Direction.OUTPUT
         self.led.value = False
 
+    def watchdog_feed(self):
+        microcontroller.watchdog.feed()
 
     def log_exception(self, e):
         # formats an exception to print to log as an error,
