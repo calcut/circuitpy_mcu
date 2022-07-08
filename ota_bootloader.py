@@ -237,12 +237,15 @@ class Bootloader():
                     f.write(file)
 
             self.display_text(f'OTA Success', row=0, clear=True)
-            # https://github.com/adafruit/Adafruit_CircuitPython_AzureIoT/issues/44
-            self.requests._free_sockets()
             time.sleep(1)
             return True
 
         except Exception as e:
             print(e)
-            print(f'Could not get {url}')
+            print(f'Could not get {url}, with id={id}')
+            try:
+                self.display_text(f'OTA Failed id={id} {url}')
+                time.sleep(10)
+            except:
+                pass
             raise
