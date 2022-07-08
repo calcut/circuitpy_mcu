@@ -42,13 +42,14 @@ class Aio_http(IO_HTTP):
         self.timer_throttled = time.monotonic()
         self.timer_receive = 0
 
-        # Real Time Clock in ESP32-S2 can be used to track timestamps
-        self.rtc = rtc.RTC()
-
         # Set up logging
         self.log = logging.getLogger('aio_http')
         self.log.addHandler(loghandler)
         self.log.info('starting aio http')
+
+        # Real Time Clock in ESP32-S2 can be used to track timestamps
+        self.rtc = rtc.RTC()
+        self.time_sync()
 
         # Setup default group and feeds
         self.create_and_get_group(self.group)
@@ -85,7 +86,7 @@ class Aio_http(IO_HTTP):
                 else:
                     self.handle_exception(e)
             except Exception as e:
-                self.handle_exception(e) 
+                self.handle_exception(e)
 
     def handle_exception(self, e):
         # formats an exception to print to log as an error,
@@ -106,6 +107,15 @@ class Aio_http(IO_HTTP):
             cause = e.args[0]
             print(f'{cause=}')
 
+    def time_sync(self):
+        try:
+            unixtime = self.requests.get('https://io.adafruit.com/api/v2/time/seconds').text
+            self.rtc.datetime = time.localtime(int(unixtime[:10]))
+            self.log.debug(f'RTC syncronised')
+
+        except Exception as e:
+            self.handle_exception(e)
+
 
     def receive(self, interval=10):
         # Recommend not subscribing to many feeds as it could slow down performance a lot.
@@ -121,10 +131,6 @@ class Aio_http(IO_HTTP):
             self.timer_receive = time.monotonic()
 
             try:
-                unixtime = self.requests.get('https://io.adafruit.com/api/v2/time/seconds').text
-                self.rtc.datetime = time.localtime(int(unixtime[:10]))
-                self.log.debug(f'RTC syncronised')
-
                 for key in self.subscribed_feeds.keys():
 
                     feed = self.create_and_get_feed(key)
