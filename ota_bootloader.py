@@ -231,6 +231,8 @@ class Bootloader():
                     f.write(file)
 
             self.display_text(f'OTA Success', row=0, clear=True)
+            # https://github.com/adafruit/Adafruit_CircuitPython_AzureIoT/issues/44
+            self.requests._free_sockets()
             time.sleep(1)
             return True
 
