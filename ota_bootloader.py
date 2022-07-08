@@ -214,10 +214,14 @@ class Bootloader():
             self.display_text('Over-the-Air Update')
             self.wifi_connect()
 
-            print(f'trying to fetch ota files defined in {url}')
-            self.display_text(f'ota_list.py')
+            uid = microcontroller.cpu.uid
+            id = f'{uid[-2]:02x}{uid[-1]:02x}'
+
+            print(f'trying to fetch ota files defined in {url}, with id={id}')
+            self.display_text(f'ota_list.py id={id}')
             response = self.requests.get(url)
-            ota_list = response.json()
+            ota_list = response.json()[id]
+            print(ota_list)
 
             for path, item_url in ota_list.items():
                 microcontroller.watchdog.feed()
