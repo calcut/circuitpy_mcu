@@ -206,9 +206,10 @@ class Bootloader():
         
         try:
             if not self.writable_check():
-                print('\nOTA Update Failed. Read Only Filesystem')
+                print('\nSkipping OTA Update. Read Only Filesystem')
+                self.display_text(f'Skipping OTA Update', row=0, clear=False)
                 print('please configure boot.py to remount storage appropriately\n')
-                time.sleep(3)
+                time.sleep(1)
                 return False
 
             self.display_text('Over-the-Air Update')
@@ -244,7 +245,11 @@ class Bootloader():
             print(e)
             print(f'Could not get {url}, with id={id}')
             try:
-                self.display_text(f'OTA Failed id={id} {url}')
+                self.display_text(f'OTA Failed id={id}')
+                url_list = url.split('/')
+                self.display_text(f'{url_list[-1]}', row=1, clear=False)
+                self.display_text(f'{url_list[-2]}', row=2, clear=False)
+                self.display_text(f'{url_list[-3]}', row=3, clear=False)
                 time.sleep(10)
             except:
                 pass
