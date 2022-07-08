@@ -161,7 +161,7 @@ class Bootloader():
         while True:
             try:
                 print(f'Wifi: {ssid}')
-                self.display_text(f'Wifi: {ssid}', row=1, clear=False)
+                self.display_text(f'Wifi: {ssid}', row=2, clear=False)
                 wifi.radio.connect(ssid, password)
                 print("Wifi Connected")
                 self.wifi_connected = True
@@ -212,11 +212,12 @@ class Bootloader():
                 time.sleep(1)
                 return False
 
-            self.display_text('Over-the-Air Update')
-            self.wifi_connect()
-
             uid = microcontroller.cpu.uid
             id = f'{uid[-2]:02x}{uid[-1]:02x}'
+
+            self.display_text('Over-the-Air Update')
+            self.display_text(f'id: {id}', row=1, clear=False)
+            self.wifi_connect()
 
             print(f'trying to fetch ota files defined in {url}, with id={id}')
             self.display_text(f'ota_list.py id={id}')
