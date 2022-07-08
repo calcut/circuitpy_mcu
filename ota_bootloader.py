@@ -30,16 +30,18 @@ def enable_watchdog(timeout=20):
     print(f'Watchdog enabled with timeout = {timeout}s')
 
 
-def reset(detail):
-    print(detail)
-    try:
-        # Only works if SD card was previously mounted
-        with open('/sd/log.txt', 'a') as f:
-            f.write(detail)
-            print('logged exception to /sd/log.txt')
+def reset(exception=None):
+    if exception:
+        detail = traceback.format_exception(None, exception, exception.__traceback__)
+        print(detail)
+        try:
+            # Only works if SD card was previously mounted
+            with open('/sd/log.txt', 'a') as f:
+                f.write(detail)
+                print('logged exception to /sd/log.txt')
 
-    except Exception as e:
-            print(f'Unable to save exception details to SD card, {e}')
+        except Exception as e:
+                print(f'Unable to save exception details to SD card, {e}')
 
     try:
         if supervisor.runtime.usb_connected:
@@ -56,7 +58,7 @@ def reset(detail):
 class Bootloader():
 
     def __init__(self, url):
-        microcontroller.watchdog.feed()
+        enable_watchdog(timeout=120)
 
         try:
             from sparkfun_serlcd import Sparkfun_SerLCD_I2C
