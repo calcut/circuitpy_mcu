@@ -273,29 +273,33 @@ class Mcu():
             # typically archive_dir already exists
             pass
 
-        n=1
-        filepath = f'{dir}/{file}'
-        file = file[:-4] #Remove the extension, assumes 3 char extension
-        newfile = f'{file}_{n:02d}.txt'
+        try:
+            n=1
+            filepath = f'{dir}/{file}'
+            file = file[:-4] #Remove the extension, assumes 3 char extension
+            newfile = f'{file}_{n:02d}.txt'
 
-        while True:
-            if newfile in os.listdir(archive_dir):
-                n+=1
-                newfile = f'{file}_{n:02d}.txt'
-            else:
-                break
+            while True:
+                if newfile in os.listdir(archive_dir):
+                    n+=1
+                    newfile = f'{file}_{n:02d}.txt'
+                else:
+                    break
 
-        newpath = f'{archive_dir}/{newfile}'
+            newpath = f'{archive_dir}/{newfile}'
 
-        with open(filepath, 'r') as f:
-            lines = f.readlines()
-            self.log.info(f'---Last 10 lines of previous log {filepath}---')
-            for l in lines[-10:]:
-                self.log.info(l[:-1])
-            self.log.info('--End of Previous log---')
+            with open(filepath, 'r') as f:
+                lines = f.readlines()
+                self.log.info(f'---Last 10 lines of previous log {filepath}---')
+                for l in lines[-10:]:
+                    self.log.info(l[:-1])
+                self.log.info('--End of Previous log---')
 
-        os.rename(filepath, newpath)
-        self.log.info(f'{filepath} moved to {newpath}')
+
+            os.rename(filepath, newpath)
+            self.log.info(f'{filepath} moved to {newpath}')
+        except Exception as e:
+            self.log_exception(e)
 
     def display_text(self, text):
         if self.display:
