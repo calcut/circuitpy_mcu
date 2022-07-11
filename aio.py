@@ -4,6 +4,7 @@ import time
 import rtc
 import adafruit_logging as logging
 import traceback
+import microcontroller
 
 from adafruit_io.adafruit_io import IO_HTTP, AdafruitIO_RequestError
 from adafruit_io.adafruit_io_errors import AdafruitIO_ThrottleError
@@ -96,16 +97,21 @@ class Aio_http(IO_HTTP):
         cl = e.__class__
         if cl == RuntimeError:
             self.log.warning('runtime error, try reconnecting wifi? or hard reset')
+            microcontroller.reset()
 
-        if cl == AdafruitIO_ThrottleError:
+        elif cl == AdafruitIO_ThrottleError:
             self.interval_minimum += 1
             self.throttled = True
             self.timer_throttled = time.monotonic()
             self.log.warning(f'AIO Throttled, increasing publish interval to {self.interval_minimum}')
 
-        if cl == AdafruitIO_RequestError:
+        elif cl == AdafruitIO_RequestError:
             cause = e.args[0]
             print(f'{cause=}')
+
+        else:
+            self.log.warning('Unhandled AIO exception, performing hard reset')
+            microcontroller.reset()
 
     def time_sync(self):
         try:
