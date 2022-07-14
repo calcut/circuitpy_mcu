@@ -387,7 +387,7 @@ class McuLogHandler(logging.Handler):
         self.device = mcu_device
         self.boot_time = time.monotonic()
 
-    def _emit(self, level, msg):
+    def emit(self, record):
         """Generate the message and write it to the AIO Feed.
 
         :param level: The level at which to log
@@ -395,20 +395,21 @@ class McuLogHandler(logging.Handler):
 
         """
 
-        if level == logging.INFO:
+
+        if record.levelno == logging.INFO:
 
             # This is a method to accumulate boot messages and send them in big chunks to AIO
             if self.device.booting:
                 if not self.device.logdata:
-                    self.device.logdata = msg
+                    self.device.logdata = record.msg
                 else:
-                    self.device.logdata += '\n'+msg
+                    self.device.logdata += '\n'+record.msg
 
             # Don't include the "INFO" in the string, because this used a lot,
             # and is effectively the default.
-            text = msg
+            text = f'{record.name} {record.msg}'
         else:
-            text = f'{logging._level_for(level)} {msg}'
+            text = f'{record.name} {record.levelname} {record.msg}'
 
         # Print to Serial
         print(text)
@@ -418,7 +419,7 @@ class McuLogHandler(logging.Handler):
         #   AND we are not currently throttled
         if (self.aio 
             and not self.aio.throttled
-            and level >= logging.WARNING):
+            and record.levelno >= logging.WARNING):
             
             try:
                 print('debug - sending log to AIO')
