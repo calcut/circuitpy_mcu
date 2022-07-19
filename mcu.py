@@ -288,16 +288,16 @@ class Mcu():
 
             newpath = f'{archive_dir}/{newfile}'
 
-            with open(filepath, 'r') as f:
+            os.rename(filepath, newpath)
+            self.log.info(f'{filepath} moved to {newpath}')
+
+            with open(newpath, 'r') as f:
                 lines = f.readlines()
                 self.log.info(f'---Last 10 lines of previous log {filepath}---')
                 for l in lines[-10:]:
                     self.log.info(l[:-1])
                 self.log.info('--End of Previous log---')
 
-
-            os.rename(filepath, newpath)
-            self.log.info(f'{filepath} moved to {newpath}')
         except Exception as e:
             self.log_exception(e)
 
@@ -421,7 +421,6 @@ class McuLogHandler(logging.Handler):
             and level >= logging.WARNING):
             
             try:
-                print('debug - sending log to AIO')
                 self.aio.send_data(f'{self.aio.group}.log', text)
             except Exception as e:
                 print(f'Error publishing to AIO log: {e}')
