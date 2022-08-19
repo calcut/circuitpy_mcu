@@ -28,6 +28,8 @@ import wifi
 import ssl
 import socketpool
 import adafruit_requests
+import ipaddress
+from circuitpy_mcu.aio import Aio_http
 
 try:
     from secrets import secrets
@@ -103,6 +105,15 @@ class Mcu():
     def watchdog_feed(self):
         microcontroller.watchdog.feed()
 
+    def connectivity_check(self, ping_addr='8.8.8.8'):
+        ping_addr = ipaddress.ip_address(ping_addr)
+        ping = wifi.radio.ping(ping_addr)
+        if not ping:
+            self.wifi_connected = False
+            self.log.info("No ping response received")
+        self.log.debug(f"{ping=}")
+        return ping
+
     def log_exception(self, e):
         # formats an exception to print to log as an error,
         # includues the traceback (to show code line number)
@@ -169,13 +180,17 @@ class Mcu():
             self.log.info(f'ssid: {network.ssid}\t rssi:{network.rssi}')
 
 
-    def wifi_connect(self):
+    def wifi_connect(self, attempts=4, aio_group=None):
         ### WiFi ###
 
         # Add a secrets.py to your filesystem that has a dictionary called secrets with "ssid" and
         # "password" keys with your WiFi credentials. DO NOT share that file or commit it into Git or other
         # source control.
 
+        # This toggle is helpful when dealing with reconnections
+        # Otherwise the wifi.radio.connect() function doesn't produce the expected exceptions.
+        wifi.radio.enabled = False
+        wifi.radio.enabled = True
         i=0
         ssid = secrets["ssid"]
         password = secrets["password"]
@@ -191,17 +206,32 @@ class Mcu():
         except Exception as e:
             self.log_exception(e)
 
-        while True:
+        attempt=0
+        while attempt < attempts:
+            attempt += 1
             try:
                 self.log.info(f'Wifi: {ssid}')
                 self.display_text(f'Wifi: {ssid}')
                 wifi.radio.connect(ssid, password)
+                if not self.connectivity_check():
+                    raise ConnectionError('No internet detected')
                 self.log.info("Wifi Connected")
                 self.display_text("Wifi Connected")
                 self.pixel[0] = self.pixel.CYAN
                 self.wifi_connected = True
                 microcontroller.watchdog.feed()
-                break
+                self.pool = socketpool.SocketPool(wifi.radio)
+                self.requests = adafruit_requests.Session(self.pool, ssl.create_default_context())
+
+                if aio_group:
+                    self.aio = Aio_http(self.requests, aio_group, self.loghandler)
+                    self.aio.log.setLevel(logging.DEBUG)
+                    self.loghandler.aio = self.aio
+                    self.aio.rtc = self.rtc
+                    self.aio.time_sync()
+                    self.log.info(f"AIO connection set up with group={aio_group}")
+                return True
+
             except ConnectionError as e:
                 self.log_exception(e)
                 self.log.error(f"{ssid} connection failed")
@@ -214,9 +244,9 @@ class Mcu():
                 if i >= len(secrets['networks']):
                     i=0
 
-        self.pool = socketpool.SocketPool(wifi.radio)
-        self.requests = adafruit_requests.Session(self.pool, ssl.create_default_context())
-                
+        self.log.warning(f'Wifi not connected after {attempts} attempts')
+        return False
+
 
     def get_timestamp(self):
         t = self.rtc.datetime
@@ -417,7 +447,8 @@ class McuLogHandler(logging.Handler):
         # Print to AIO, only if level is WARNING or higher
         #   AND we are connected to AIO
         #   AND we are not currently throttled
-        if (self.aio 
+        if (self.aio
+            and self.device.wifi_connected
             and not self.aio.throttled
             and record.levelno >= logging.WARNING):
             
