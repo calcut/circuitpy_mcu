@@ -48,14 +48,23 @@ __version__ = "0.0.0-auto.0"
 __repo__ = "https://github.com/calcut/circuitpy-mcu"
 
 class Mcu():
-    def __init__(self, i2c_freq=50000, i2c_lookup=None, uart_baud=None):
+    def __init__(self, i2c_freq=50000, i2c_lookup=None, uart_baud=None, offline_mode=False):
 
         uid = microcontroller.cpu.uid
         self.id = f'{uid[-2]:02x}{uid[-1]:02x}'
 
         # Initialise some key variables
         self.wifi_connected = False
+        self.offline_mode = offline_mode
+
+        if self.offline_mode:
+            self.offline_retry_connection = False #seconds
+        else:
+            self.offline_retry_connection = 60 #seconds
+        self.timer_offline = time.monotonic()
+
         self.aio_log_feed = None
+        self.aio = None
         self.data = {} # A dict to store the outgoing values of data
         self.logdata = None # A str to accumulate non urgent logs to send to AIO periodically
         self.booting = False # a flag to indicate boot log messages should be recorded
@@ -101,23 +110,84 @@ class Mcu():
         self.led = digitalio.DigitalInOut(board.LED)
         self.led.direction = digitalio.Direction.OUTPUT
         self.led.value = False
+        self.connection_error_count = 0
+
+        if not self.offline_mode:
+            self.wifi_connect()
 
     def watchdog_feed(self):
-        microcontroller.watchdog.feed()
+        try:
+            microcontroller.watchdog.feed()
+        except ValueError:
+            # Happens if watchdog timer hasn't been started
+            pass
 
-    def connectivity_check(self, ping_addr='8.8.8.8'):
-        ping_addr = ipaddress.ip_address(ping_addr)
-        ping = wifi.radio.ping(ping_addr)
-        if not ping:
-            self.wifi_connected = False
-            self.log.info("No ping response received")
-        self.log.debug(f"{ping=}")
-        return ping
+    def aio_setup(self, aio_group=None):
+        try:
+            if not self.connectivity_check(host='adafruit.com'):
+                self.log.info('aio_setup cancelled: no wifi connection')
+                return False
 
-    def log_exception(self, e):
-        # formats an exception to print to log as an error,
-        # includues the traceback (to show code line number)
-        self.log.error(traceback.format_exception(None, e, e.__traceback__))
+            if aio_group:
+                self.aio_group = aio_group
+            if self.aio_group == None:
+                self.aio_group = self.id
+
+            self.aio = Aio_http(self.requests, self.aio_group, self.loghandler)
+            self.aio.log.setLevel(logging.DEBUG)
+            self.loghandler.aio = self.aio
+            self.aio.rtc = self.rtc
+            self.aio.time_sync()
+            self.log.info(f"AIO connection set up with group={aio_group}")
+            return True
+
+        except Exception as e:
+            self.handle_exception(e)
+
+    def aio_sync(self, receive_interval=10, publish_interval=10):
+        try:
+            if not self.connectivity_check(host='adafruit.com'):
+                self.log.info('aio_sync cancelled: no wifi connection')
+                return False
+            if self.aio:
+                self.aio.receive(interval=receive_interval)
+                self.aio.publish_feeds(self.data, interval=publish_interval, location=None)
+            else:
+                self.log.info('aio_sync cancelled: please run aio_setup')
+                return False
+            return True
+
+        except Exception as e:
+            self.handle_exception(e)
+            self.aio_sync()
+
+    def connectivity_check(self, host='dns.google', port=443):
+        try:
+            if self.offline_mode:
+                if self.offline_retry_connection:
+                    # See if it it time to try getting online again
+                    if time.monotonic() - self.timer_offline > self.offline_retry_connection:
+                        self.offline_mode = False
+                        self.log.debug(f'Setting offline_mode = False')
+
+                self.log.debug(f"connectivity_check() == False because {self.offline_mode=}")
+                return False
+
+            if not self.wifi_connected:
+                raise ConnectionError(f"{self.wifi_connected=}")
+
+            ip_str = self.pool.getaddrinfo(host, port)[0][4][0]
+            ping_addr = ipaddress.ip_address(ip_str)
+            ping = wifi.radio.ping(ping_addr)
+            if not ping:
+                self.wifi_connected = False
+                raise ConnectionError(f"No ping response received from {host} {ip_str}")
+            else:
+                self.log.debug(f"{ping=}")
+                return True
+
+        except Exception as e:
+            self.handle_exception(e)
 
     def i2c_power_on(self):
         # Due to board rev B/C differences, need to read the initial state
@@ -128,10 +198,6 @@ class Mcu():
 
         self.i2c_power.switch_to_output(value=(not rest_level))
         time.sleep(1.5) # Sometimes even 1s is not enough for e.g. i2c displays. Worse in the heat?
-
-    def i2c_power_off(self):
-        self.i2c_power.switch_to_input()
-        time.sleep(1)
 
     def i2c_power_off(self):
         self.i2c_power.switch_to_output(value=True)
@@ -170,82 +236,88 @@ class Mcu():
         return lookup_result
 
     def wifi_scan(self):
-        self.log.info('\nScanning for nearby WiFi networks...')
-        self.networks = []
-        for network in wifi.radio.start_scanning_networks():
-            self.networks.append(network)
-        wifi.radio.stop_scanning_networks()
-        self.networks = sorted(self.networks, key=lambda net: net.rssi, reverse=True)
-        for network in self.networks:
-            self.log.info(f'ssid: {network.ssid}\t rssi:{network.rssi}')
+        try:
+            self.log.info('Scanning for nearby WiFi networks...')
+            self.networks = []
+            for network in wifi.radio.start_scanning_networks():
+                self.networks.append(network)
+            wifi.radio.stop_scanning_networks()
+            self.networks = sorted(self.networks, key=lambda net: net.rssi, reverse=True)
+            for network in self.networks:
+                self.log.info(f'ssid: {network.ssid}\t rssi:{network.rssi}')
+        except Exception as e:
+            self.handle_exception(e)
 
 
-    def wifi_connect(self, attempts=4, aio_group=None):
+    def wifi_connect(self, attempts=4, scan=True):
         ### WiFi ###
 
         # Add a secrets.py to your filesystem that has a dictionary called secrets with "ssid" and
         # "password" keys with your WiFi credentials. DO NOT share that file or commit it into Git or other
         # source control.
 
-        # This toggle is helpful when dealing with reconnections
-        # Otherwise the wifi.radio.connect() function doesn't produce the expected exceptions.
-        wifi.radio.enabled = False
-        wifi.radio.enabled = True
-        i=0
-        ssid = secrets["ssid"]
-        password = secrets["password"]
         try:
-            # Try to detect strongest wifi
-            # If it is in the known networks list, use it
-            self.wifi_scan()
-            strongest_ssid = self.networks[0].ssid
-            if strongest_ssid in secrets["networks"]:
-                ssid = strongest_ssid
-                password = secrets["networks"][ssid]
-                self.log.info('Using strongest wifi network')
+            # This toggle is helpful when dealing with reconnections
+            # Otherwise the wifi.radio.connect() function doesn't produce the expected exceptions.
+            wifi.radio.enabled = False
+            wifi.radio.enabled = True
+            i=0
+            ssid = secrets["ssid"]
+            password = secrets["password"]
+            
+            if scan:
+                # Try to detect strongest wifi
+                # If it is in the known networks list, use it
+                self.wifi_scan()
+                strongest_ssid = self.networks[0].ssid
+                if strongest_ssid in secrets["networks"]:
+                    ssid = strongest_ssid
+                    password = secrets["networks"][ssid]
+                    self.log.info('Using strongest wifi network')
+
+
+            attempt=0
+            while True:
+                attempt += 1
+                if attempt > attempts:
+                    self.log.warning(f'Wifi not connected after {attempts} attempts')
+                    self.wifi_connected = False
+                    return False
+                try:
+                    self.log.info(f'Wifi: {ssid}')
+                    self.display_text(f'Wifi: {ssid}')
+                    wifi.radio.connect(ssid, password)
+                    self.wifi_connected = True
+                    break
+                except ConnectionError as e:
+                    self.watchdog_feed()
+                    self.log.warning(f"{ssid} connection failed on attempt {attempt}/{attempts}: {e}")
+                    self.display_text("Connection Failed")
+                    i +=1
+                    if i >= len(secrets['networks']):
+                        i=0
+                    network_list = list(secrets['networks'])
+                    ssid = network_list[i]
+                    password = secrets["networks"][network_list[i]]
+
+          
+            self.pool = socketpool.SocketPool(wifi.radio)
+            self.requests = adafruit_requests.Session(self.pool, ssl.create_default_context())
+            self.connectivity_check()
+            self.log.info("Wifi Connected")
+            self.display_text("Wifi Connected")
+            self.pixel[0] = self.pixel.CYAN
+            self.watchdog_feed()
+
+            # Refresh aio setup if it was previously connected
+            if self.aio is not None:
+                self.aio_setup()
+
+            return True  
+
         except Exception as e:
-            self.log_exception(e)
+            self.handle_exception(e)
 
-        attempt=0
-        while attempt < attempts:
-            attempt += 1
-            try:
-                self.log.info(f'Wifi: {ssid}')
-                self.display_text(f'Wifi: {ssid}')
-                wifi.radio.connect(ssid, password)
-                if not self.connectivity_check():
-                    raise ConnectionError('No internet detected')
-                self.log.info("Wifi Connected")
-                self.display_text("Wifi Connected")
-                self.pixel[0] = self.pixel.CYAN
-                self.wifi_connected = True
-                microcontroller.watchdog.feed()
-                self.pool = socketpool.SocketPool(wifi.radio)
-                self.requests = adafruit_requests.Session(self.pool, ssl.create_default_context())
-
-                if aio_group:
-                    self.aio = Aio_http(self.requests, aio_group, self.loghandler)
-                    self.aio.log.setLevel(logging.DEBUG)
-                    self.loghandler.aio = self.aio
-                    self.aio.rtc = self.rtc
-                    self.aio.time_sync()
-                    self.log.info(f"AIO connection set up with group={aio_group}")
-                return True
-
-            except ConnectionError as e:
-                self.log_exception(e)
-                self.log.error(f"{ssid} connection failed")
-                self.display_text("Connection Failed")
-                network_list = list(secrets['networks'])
-                ssid = network_list[i]
-                password = secrets["networks"][network_list[i]]
-                time.sleep(1)
-                i +=1
-                if i >= len(secrets['networks']):
-                    i=0
-
-        self.log.warning(f'Wifi not connected after {attempts} attempts')
-        return False
 
 
     def get_timestamp(self):
@@ -271,7 +343,7 @@ class Mcu():
             self.log.warning('SD Card not mounted')
         except Exception as e:
             self.sdcard = None
-            self.log_exception(e)
+            self.handle_exception(e)
 
     def delete_archive(self, archive_dir='/sd/archive'):
         try:
@@ -329,7 +401,7 @@ class Mcu():
             os.rename(filepath, newpath)
             self.log.info(f'{filepath} moved to {newpath}')
         except Exception as e:
-            self.log_exception(e)
+            self.handle_exception(e)
 
     def display_text(self, text):
         if self.display:
@@ -392,7 +464,7 @@ class Mcu():
         while True:
             line = None
             while not line:
-                microcontroller.watchdog.feed()
+                self.watchdog_feed()
                 line = self.read_serial()
 
             if valid_inputs:
@@ -409,6 +481,37 @@ class Mcu():
             microcontroller.reset()
         else:
             self.log.warning('OTA update requested, but CIRCUITPY not writable, skipping')
+
+    def handle_exception(self, e):
+
+
+        cl = e.__class__
+        if cl == ConnectionError:
+            if self.offline_mode:
+                self.log.warning(f"ConnectionError: {e}, ignoring becuase {self.offline_mode=}")
+            else:
+                self.connection_error_count +=1
+                if self.connection_error_count >= 3:
+                    # self.log.warning(f"{self.connection_error_count=}, hard resetting")
+                    # microcontroller.reset()
+                    self.log.warning(f"{self.connection_error_count=}, entering offline mode")
+                    self.offline_mode=True
+                    self.timer_offline = time.monotonic()
+                    self.connection_error_count = 0
+                    return
+                self.log.warning(f"ConnectionError: {e} trying to reconnect")
+                self.log.info(f"{self.connection_error_count=}")
+                self.wifi_connect()      
+
+        # elif cl == AdafruitIO_RequestError:
+
+        else:
+            # formats an exception to print to log as an error,
+            # includues the traceback (to show code line number)
+            self.log.error(traceback.format_exception(None, e, e.__traceback__))
+            self.log.warning(f'No handler for this exception in mcu.handle_exception()')
+            # raise
+
 
 class McuLogHandler(logging.Handler):
 
