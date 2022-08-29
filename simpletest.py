@@ -1,17 +1,6 @@
-from adafruit_motorkit import MotorKit
 from circuitpy_mcu.ota_bootloader import reset, enable_watchdog
 from circuitpy_mcu.mcu import Mcu
-from circuitpy_mcu.display import LCD_20x4
-
-
-import adafruit_pcf8523
 import time
-import busio
-import board
-
-# scheduling and event/error handling libs
-from watchdog import WatchDogTimeout
-import microcontroller
 import adafruit_logging as logging
 
 __filename__ = "simpletest.py"
@@ -33,8 +22,16 @@ def main():
 
     mcu = Mcu(loglevel=LOGLEVEL)
 
-    display = LCD_20x4(mcu.i2c)
-    mcu.attach_display(display, showtext = __filename__) # to show wifi/AIO status etc.
+    # External I2C display
+    mcu.attach_display_sparkfun_20x4()
+
+    # Use the Adalogger RTC chip rather than ESP32-S2 RTC
+    mcu.attach_rtc_pcf8523()
+
+    # Use SD card
+    if mcu.attach_sdcard():
+        mcu.delete_archive()
+        mcu.archive_file('log.txt')
 
     # Networking Setup
     mcu.wifi.connect()

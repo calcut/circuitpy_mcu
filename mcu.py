@@ -28,6 +28,12 @@ from circuitpy_mcu.aio import Aio_http
 from circuitpy_mcu.wifi_manager import Wifi_manager
 
 try:
+    # RTC on adalogger board
+    import adafruit_pcf8523
+except:
+    pass
+
+try:
     # Import Known display types
     from circuitpy_mcu.display import LCD_16x2, LCD_20x4
 except:
@@ -148,8 +154,10 @@ class Mcu():
                 self.aio.receive(interval=receive_interval)
                 self.aio.publish_feeds(self.data, interval=publish_interval, location=None)
             else:
-                self.log.info('aio_sync cancelled: please run aio_setup')
-                return False
+                self.log.warning('aio_sync failed, aio_setup() will be re-run')
+                self.aio_setup()
+                self.aio_sync()
+
             return True
 
         except Exception as e:
@@ -220,6 +228,19 @@ class Mcu():
             self.display = None
             self.handle_exception(e)
 
+    def attach_rtc_pcf8523(self):
+        try:
+            self.rtc = adafruit_pcf8523.PCF8523(self.i2c)
+            self.log.info("Using external RTC PCF8523")
+        except ValueError as e:
+            self.log.warning(f'No RTC found: {e}')
+
+    def attach_display_sparkfun_20x4(self):
+        try:
+            display = LCD_20x4(self.i2c)
+            self.attach_display(display)
+        except ValueError as e:
+            self.log.warning(f'No Display found: {e}')
 
     def attach_sdcard(self, cs_pin=board.D10):
         
@@ -231,9 +252,11 @@ class Mcu():
             storage.mount(vfs, "/sd")
             self.display_text('SD Card Mounted')
             self.log.info('SD Card Mounted')
+            return True
         except OSError:
             self.sdcard = None
             self.log.warning('SD Card not mounted')
+            return False
         except Exception as e:
             self.sdcard = None
             self.handle_exception(e)
@@ -246,7 +269,7 @@ class Mcu():
                 os.remove(filepath)
                 self.log.info(f'Deleted {filepath}')
         except:
-            self.log.warning(f'{dir} directory not found')
+            self.log.warning(f'{archive_dir} directory not found to delete')
             return
 
 

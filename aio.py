@@ -45,8 +45,8 @@ class Aio_http(IO_HTTP):
 
         # Set up logging
         self.log = logging.getLogger('aio_http')
-        self.log.addHandler(loghandler)
-        self.log.info('starting aio http')
+        if loghandler:
+            self.log.addHandler(loghandler)
 
         # Real Time Clock in ESP32-S2 can be used to track timestamps
         self.rtc = rtc.RTC()
@@ -119,7 +119,7 @@ class Aio_http(IO_HTTP):
         try:
             unixtime = self.requests.get('https://io.adafruit.com/api/v2/time/seconds').text
             self.rtc.datetime = time.localtime(int(unixtime[:10]))
-            self.log.debug(f'RTC syncronised')
+            self.log.info(f'RTC syncronised')
 
         except Exception as e:
             self.handle_exception(e)

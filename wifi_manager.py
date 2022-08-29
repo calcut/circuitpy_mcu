@@ -47,7 +47,7 @@ class Wifi_manager():
             wifi.radio.stop_scanning_networks()
             self.networks = sorted(self.networks, key=lambda net: net.rssi, reverse=True)
             for network in self.networks:
-                self.log.info(f'ssid: {network.ssid}\t rssi:{network.rssi}')
+                self.log.debug(f'ssid: {network.ssid}\t rssi:{network.rssi}')
         except Exception as e:
             self.handle_exception(e)
 
@@ -69,7 +69,13 @@ class Wifi_manager():
 
             ip_str = self.pool.getaddrinfo(host, port)[0][4][0]
             ping_addr = ipaddress.ip_address(ip_str)
-            ping = wifi.radio.ping(ping_addr)
+            for i in range(3):
+                # try up to 3 times to get a ping
+                ping = wifi.radio.ping(ping_addr, timeout=1)
+                if i > 0:
+                    self.log.debug(f'{i=}, {ping} took several attempts to ping')
+                if ping:
+                    break
             if not ping:
                 self.connected = False
                 raise ConnectionError(f"No ping response received from {host} {ip_str}")
@@ -118,7 +124,7 @@ class Wifi_manager():
                     self.connected = False
                     return False
                 try:
-                    self.log.info(f'Wifi: {ssid}')
+                    self.log.info(f'{ssid}')
                     self.display(f'Wifi: {ssid}')
                     wifi.radio.connect(ssid, password)
                     self.connected = True
@@ -138,7 +144,7 @@ class Wifi_manager():
             self.pool = socketpool.SocketPool(wifi.radio)
             self.requests = adafruit_requests.Session(self.pool, ssl.create_default_context())
             self.connectivity_check()
-            self.log.info("Wifi Connected")
+            self.log.info("Connected")
             self.display("Wifi Connected")
             self.watchdog_feed()
 
