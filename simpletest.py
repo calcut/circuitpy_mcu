@@ -3,6 +3,7 @@ from circuitpy_mcu.mcu import Mcu
 import time
 import adafruit_logging as logging
 
+__version__ = "2.0.0.rc1"
 __filename__ = "simpletest.py"
 __repo__ = "https://github.com/calcut/circuitpy-mcu"
 
@@ -20,6 +21,8 @@ def main():
     }
 
     mcu = Mcu(loglevel=LOGLEVEL)
+    mcu.booting = True # A flag to record boot messages
+    mcu.log.info(f'STARTING {__filename__} {__version__}')
 
     # External I2C display
     mcu.attach_display_sparkfun_20x4()
@@ -55,6 +58,10 @@ def main():
 
                 if feed_id == 'ota':
                     mcu.ota_reboot()
+
+
+    mcu.booting = False # Stop accumulating boot log messages
+    mcu.aio.publish_long('log', mcu.logdata) # Send the boot log
 
     timer_A=0
 
