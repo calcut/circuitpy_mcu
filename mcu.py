@@ -112,8 +112,7 @@ class Mcu():
         self.led.value = False
         self.connection_error_count = 0
 
-        if not self.offline_mode:
-            self.wifi_connect()
+        self.aio_group = None
 
     def watchdog_feed(self):
         try:
@@ -134,7 +133,7 @@ class Mcu():
                 self.aio_group = self.id
 
             self.aio = Aio_http(self.requests, self.aio_group, self.loghandler)
-            self.aio.log.setLevel(logging.DEBUG)
+            self.aio.log.setLevel(self.log.level)
             self.loghandler.aio = self.aio
             self.aio.rtc = self.rtc
             self.aio.time_sync()
@@ -164,13 +163,13 @@ class Mcu():
     def connectivity_check(self, host='dns.google', port=443):
         try:
             if self.offline_mode:
+                self.log.debug(f"connectivity_check() == False because {self.offline_mode=}")
                 if self.offline_retry_connection:
                     # See if it it time to try getting online again
                     if time.monotonic() - self.timer_offline > self.offline_retry_connection:
                         self.offline_mode = False
                         self.log.debug(f'Setting offline_mode = False')
 
-                self.log.debug(f"connectivity_check() == False because {self.offline_mode=}")
                 return False
 
             if not self.wifi_connected:
@@ -249,12 +248,17 @@ class Mcu():
             self.handle_exception(e)
 
 
-    def wifi_connect(self, attempts=4, scan=True):
+    def wifi_connect(self, attempts=4, scan=True, aio_group=None):
         ### WiFi ###
 
         # Add a secrets.py to your filesystem that has a dictionary called secrets with "ssid" and
         # "password" keys with your WiFi credentials. DO NOT share that file or commit it into Git or other
         # source control.
+        if self.offline_mode:
+            self.log.info(f'Cancelling wifi connection, {self.offline_mode=}')
+            return False
+
+        self.aio_group = aio_group
 
         try:
             # This toggle is helpful when dealing with reconnections
@@ -309,9 +313,9 @@ class Mcu():
             self.pixel[0] = self.pixel.CYAN
             self.watchdog_feed()
 
-            # Refresh aio setup if it was previously connected
-            if self.aio is not None:
-                self.aio_setup()
+            # Refresh aio setup
+            if self.aio_group is not None:
+                self.aio_setup(aio_group)
 
             return True  
 
@@ -492,15 +496,16 @@ class Mcu():
             else:
                 self.connection_error_count +=1
                 if self.connection_error_count >= 3:
-                    # self.log.warning(f"{self.connection_error_count=}, hard resetting")
-                    # microcontroller.reset()
+                    if self.offline_retry_connection == False:
+                        self.log.warning(f"{self.connection_error_count=}, hard resetting")
+                        microcontroller.reset()
                     self.log.warning(f"{self.connection_error_count=}, entering offline mode")
                     self.offline_mode=True
                     self.timer_offline = time.monotonic()
                     self.connection_error_count = 0
                     return
                 self.log.warning(f"ConnectionError: {e} trying to reconnect")
-                self.log.info(f"{self.connection_error_count=}")
+                self.log.info(f"{self.connection_error_count=} / 3")
                 self.wifi_connect()      
 
         # elif cl == AdafruitIO_RequestError:
