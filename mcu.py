@@ -110,11 +110,11 @@ class Mcu():
     def service(self, serial_parser=None):
         self.watchdog_feed()
         self.read_serial(send_to=serial_parser)
-        if self.wifi:
-            if self.wifi.connected:
-                self.pixel[0] = self.pixel.CYAN
-            else:
-                self.pixel[0] = self.pixel.RED
+        # if self.wifi:
+        #     if self.wifi.connected:
+        #         self.pixel[0] = self.pixel.CYAN
+        #     else:
+        #         self.pixel[0] = self.pixel.RED
 
     def watchdog_feed(self):
         try:
@@ -402,24 +402,10 @@ class Mcu():
 
         cl = e.__class__
         if cl == ConnectionError:
-            if self.offline_mode:
-                self.log.warning(f"ConnectionError: {e}, ignoring becuase {self.offline_mode=}")
-            else:
-                self.connection_error_count +=1
-                if self.connection_error_count >= 3:
-                    if self.offline_retry_connection == False:
-                        self.log.warning(f"{self.connection_error_count=}, hard resetting")
-                        microcontroller.reset()
-                    self.log.warning(f"{self.connection_error_count=}, entering offline mode")
-                    self.offline_mode=True
-                    self.timer_offline = time.monotonic()
-                    self.connection_error_count = 0
-                    return
-                self.log.warning(f"ConnectionError: {e} trying to reconnect")
-                self.log.info(f"{self.connection_error_count=} / 3")
-                self.wifi_connect()      
-
-        # elif cl == AdafruitIO_RequestError:
+            self.log.warning(f'ConnectionError at mcu level')
+            self.log.error(traceback.format_exception(None, e, e.__traceback__))
+            self.wifi.connection_error_count += 1
+            self.log.info(f'{self.wifi.connection_error_count=}')
 
         else:
             # formats an exception to print to log as an error,

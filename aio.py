@@ -96,9 +96,9 @@ class Aio_http(IO_HTTP):
 
         cl = e.__class__
         if cl == RuntimeError:
-            # self.log.warning('runtime error, try reconnecting wifi? or hard reset')
-            raise ConnectionError(f"AIO runtime error {e}")
-            # microcontroller.reset()
+            self.log.warning('runtime error, try reconnecting wifi? or hard reset')
+            # raise ConnectionError(f"AIO runtime error {e}")
+            microcontroller.reset()
 
         elif cl == AdafruitIO_ThrottleError:
             self.interval_minimum += 1
@@ -111,9 +111,9 @@ class Aio_http(IO_HTTP):
             print(f'{cause=}')
 
         else:
-            # self.log.warning('Unhandled AIO exception, performing hard reset')
-            raise ConnectionError(f"Unhandled AIO Exception {e}")
-            # microcontroller.reset()
+            self.log.warning('Unhandled AIO exception, performing hard reset')
+            # raise ConnectionError(f"Unhandled AIO Exception {e}")
+            microcontroller.reset()
 
     def time_sync(self):
         try:

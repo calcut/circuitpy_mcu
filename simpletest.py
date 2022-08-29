@@ -15,7 +15,6 @@ def main():
     i2c_dict = {
         '0x0B' : 'Battery Monitor LC709203', # Built into ESP32S2 feather 
         '0x68' : 'Realtime Clock PCF8523', # On Adalogger Featherwing
-        '0x78' : 'Motor Featherwing PCA9685', #Solder bridge on address bit A4 and A3
         '0x72' : 'Sparkfun LCD Display',
         '0x77' : 'Temp/Humidity/Pressure BME280' # Built into some ESP32S2 feathers 
     }
@@ -36,10 +35,26 @@ def main():
     # Networking Setup
     mcu.wifi.connect()
     mcu.aio_setup(aio_group = f'{AIO_GROUP}-{mcu.id}')
+    mcu.aio.subscribe('led-color')
 
     def usb_serial_parser(string):
         mcu.log.info(f'USBserial: {string}')
 
+    def parse_feeds():
+        if mcu.aio is not None:
+            for feed_id in mcu.aio.updated_feeds.keys():
+                payload = mcu.aio.updated_feeds.pop(feed_id)
+
+                if feed_id == 'led-color':
+                    r = int(payload[1:3], 16)
+                    g = int(payload[3:5], 16)
+                    b = int(payload[5:], 16)
+                    mcu.display.set_fast_backlight_rgb(r, g, b)
+                    mcu.pixel[0] = int(payload[1:], 16)
+                    # mcu.pixel[0] = (r<<16) + (g<<8) + b
+
+                if feed_id == 'ota':
+                    mcu.ota_reboot()
 
     timer_A=0
 
@@ -52,7 +67,8 @@ def main():
             timestamp = mcu.get_timestamp()
             mcu.data['debug'] = timestamp
             mcu.display_text(timestamp)
-            mcu.aio_sync()
+            mcu.aio_sync(receive_interval=10, publish_interval=10)
+            parse_feeds()
 
 
 if __name__ == "__main__":
