@@ -67,7 +67,7 @@ def main():
 
     while True:
         mcu.service(serial_parser=usb_serial_parser)
-
+        mcu.aio.sync(mcu.data, publish_interval=10)
 
         if time.monotonic() - timer_A > 1:
             timer_A = time.monotonic()
@@ -75,7 +75,6 @@ def main():
             mcu.data['debug'] = timestamp
             mcu.display_text(timestamp)
             # mcu.aio_sync_http(receive_interval=10, publish_interval=10)
-            mcu.aio.sync(mcu.data, publish_interval=10)
             parse_feeds()
 
 
