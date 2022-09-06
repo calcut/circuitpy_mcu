@@ -85,6 +85,9 @@ class Wifi_manager():
 
         except Exception as e:
             self.handle_exception(e)
+            # Try again after reconnection
+            return (self.connectivity_check())
+
 
     def connect(self, attempts=4, scan=True):
         ### WiFi ###
