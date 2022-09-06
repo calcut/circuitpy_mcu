@@ -141,8 +141,7 @@ class Mcu():
             self.aio.log.setLevel(self.log.level)
             self.loghandler.aio = self.aio
             self.aio.rtc = self.rtc
-            if http:
-                self.aio.time_sync()
+            self.aio.time_sync()
             self.log.info(f"AIO connection set up with group={aio_group}")
             return True
 
@@ -494,4 +493,7 @@ class McuLogHandler(logging.Handler):
                     f.write(text)
             except OSError as e:
                 print(f'SDCard FS not writable {e}')
+            except RuntimeError as e:
+                print(f"SDcard RuntimeError: {e}")
+                print(f"While attempting to write {text}")
 

@@ -280,9 +280,7 @@ class Aio_mqtt():
     OTA, RTC features
     fixed group for all feeds
 
-    a dict called "data" to store outgoing feeds
     a dict called "updated_feeds" to store incoming feeds
-
 
     '''
 
@@ -304,10 +302,10 @@ class Aio_mqtt():
 
         # MQTT event callbacks
         self.client.on_connect = self.on_connect
-        # self.client.on_disconnect = self.on_disconnect
+        self.client.on_disconnect = self.on_disconnect
         self.client.on_message = self.on_message
         self.client.on_subscribe = self.on_subscribe
-        # self.client.on_unsubscribe = self.on_unsubscribe
+        self.client.on_unsubscribe = self.on_unsubscribe
         self.connected = False
 
         # Initialise some key variables
@@ -326,7 +324,6 @@ class Aio_mqtt():
 
         # Real Time Clock in ESP32-S2 can be used to track timestamps
         self.rtc = rtc.RTC()
-        # self.connect()
         self.client.connect()
 
     def on_connect(self, client, userdata, flags, return_code):
@@ -335,9 +332,9 @@ class Aio_mqtt():
         # passed to this function is the Adafruit IO MQTT client so you can make
         # calls against it easily.
         self.connected = True
-        self.log.info("Connected to AIO")
+        print("Connected to AIO")
+        # self.log.info("Connected to AIO")
         self.display("Connected to AIO")
-        self.client.subscribe("time/seconds")
         self.client.subscribe(f"{self._user}/throttle")
         self.client.subscribe(f"{self._user}/errors")
         self.subscribe(f"ota", get_latest=False) #Listen for requests for over the air updates
@@ -347,7 +344,18 @@ class Aio_mqtt():
         # self.log.info(f"Subscribed to {topic} with QOS level {granted_qos}")
         # Not using logger in this callback, as errors were seen eg.
         # AdafruitIO_MQTTError: MQTT Error: Unable to connect to Adafruit IO.
-        # Possibly related to logging to SD card taking too long?     
+        # Possibly related to logging to SD card taking too long?
+        # May also get "pystack exausted" if trying to do too much in callbacks
+
+    def on_unsubscribe(self, client, user_data, topic, pid):
+        """Runs when the client calls on_unsubscribe."""
+        print(f'Unsubscribed from {topic}')
+        # self.log.info(f'Unsubscribed from {topic}')
+
+    def on_disconnect(self, client, userdata, return_code):
+        self.connected = False
+        print('AIO disconnected')
+        # self.log.info('AIO disconnected')
 
     def on_message(self, client, topic, payload):
         # Message function will be called when a subscribed feed has a new value.
@@ -370,11 +378,15 @@ class Aio_mqtt():
         # General parsing 
         if feed_id == 'seconds':
             self.rtc.datetime = time.localtime(int(message))
+            print('RTC Synchronised')
+
         elif feed_id == f"{self.group}.ota":
+            self.log.warning(f'got OTA request {payload}')
             self.log.warning(f'got OTA request {payload}')
             self.ota_requested = True # Can't fetch OTA in a callback, causes SSL errors.
         else:
-            self.log.info(f"{feed_id} = {message}")
+            print(f"{feed_id} = {message}")
+            # self.log.info(f"{feed_id} = {message}")
             self.updated_feeds[feed_id] = message
 
     def add_feed_callback(self, feed_key, callback_method):
@@ -479,16 +491,18 @@ class Aio_mqtt():
                 self.handle_exception(e)
 
     def subscribe(self, feed_key, get_latest=True):
-
         validate_feed_key(feed_key)
         feed = f"{self._user}/f/{self.group}.{feed_key}"
-
-        print(f'Trying to subscribe to {feed=}')
         self.client.subscribe(feed)
 
         # Request latest value from the feed
         if get_latest:
             self.get(feed_key)
+
+    def unsubscribe(self, feed_key):
+        validate_feed_key(feed_key)
+        feed = f"{self._user}/f/{self.group}.{feed_key}"
+        self.client.unsubscribe(feed)
 
     def send_data(self, feed_key, data, metadata=None, precision=None):
         """
@@ -511,10 +525,17 @@ class Aio_mqtt():
         validate_feed_key(feed_key)
         self.client.publish(f"{self._user}/f/{self.group}.{feed_key}/get", "\0")
 
+    def time_sync(self):
+        #This will automatically unsubscribe after a successful RTC sync
+        self.client.subscribe("time/seconds")
+        time.sleep(1)
+        self.client.unsubscribe("time/seconds")
 
     def display(self, message):
         # Special log command with custom level, to request sending to attached display
         self.log.log(level=25, msg=message)
+
+
 
     def handle_exception(self, e):
         # formats an exception to print to log as an error,
