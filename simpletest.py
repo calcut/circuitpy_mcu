@@ -37,7 +37,7 @@ def main():
 
     # Networking Setup
     mcu.wifi.connect()
-    mcu.aio_setup(aio_group = f'{AIO_GROUP}-{mcu.id}')
+    mcu.aio_setup(aio_group=f'{AIO_GROUP}-{mcu.id}')
     mcu.aio.subscribe('led-color')
 
     def usb_serial_parser(string):
@@ -74,7 +74,8 @@ def main():
             timestamp = mcu.get_timestamp()
             mcu.data['debug'] = timestamp
             mcu.display_text(timestamp)
-            mcu.aio_sync(receive_interval=10, publish_interval=10)
+            # mcu.aio_sync_http(receive_interval=10, publish_interval=10)
+            mcu.aio.sync(mcu.data, publish_interval=10)
             parse_feeds()
 
 

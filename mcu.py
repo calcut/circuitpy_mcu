@@ -24,7 +24,7 @@ import adafruit_sdcard
 import storage
 
 # Networking
-from circuitpy_mcu.aio import Aio_http
+from circuitpy_mcu.aio import Aio_http, Aio_mqtt
 from circuitpy_mcu.wifi_manager import Wifi_manager
 
 try:
@@ -123,7 +123,7 @@ class Mcu():
             # Happens if watchdog timer hasn't been started
             pass
 
-    def aio_setup(self, aio_group=None):
+    def aio_setup(self, aio_group=None, http=False):
         try:
             if not self.wifi.connectivity_check(host='adafruit.com'):
                 self.log.info('aio_setup cancelled: no wifi connection')
@@ -134,18 +134,22 @@ class Mcu():
             if self.aio_group == None:
                 self.aio_group = self.id
 
-            self.aio = Aio_http(self.wifi.requests, self.aio_group, self.loghandler)
+            if http:
+                self.aio = Aio_http(self.wifi.requests, self.aio_group, self.loghandler)
+            else:
+                self.aio = Aio_mqtt(self.wifi.pool, self.aio_group, self.loghandler)
             self.aio.log.setLevel(self.log.level)
             self.loghandler.aio = self.aio
             self.aio.rtc = self.rtc
-            self.aio.time_sync()
+            if http:
+                self.aio.time_sync()
             self.log.info(f"AIO connection set up with group={aio_group}")
             return True
 
         except Exception as e:
             self.handle_exception(e)
 
-    def aio_sync(self, receive_interval=10, publish_interval=10):
+    def aio_sync_http(self, receive_interval=10, publish_interval=10):
         try:
             if not self.wifi.connectivity_check(host='adafruit.com'):
                 self.log.info('aio_sync cancelled: no wifi connection')
@@ -156,13 +160,13 @@ class Mcu():
             else:
                 self.log.warning('aio_sync failed, aio_setup() will be re-run')
                 self.aio_setup()
-                self.aio_sync()
+                self.aio_sync_http()
 
             return True
 
         except Exception as e:
             self.handle_exception(e)
-            self.aio_sync()
+            self.aio_sync_http()
 
 
 
