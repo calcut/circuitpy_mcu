@@ -7,9 +7,11 @@ import traceback
 import microcontroller
 
 import adafruit_minimqtt.adafruit_minimqtt as MQTT
-from adafruit_io.adafruit_io import IO_HTTP, IO_MQTT, AdafruitIO_RequestError, validate_feed_key
+from adafruit_minimqtt.adafruit_minimqtt import MMQTTException
+from adafruit_io.adafruit_io import IO_HTTP, IO_MQTT, AdafruitIO_RequestError 
 from adafruit_io.adafruit_io_errors import AdafruitIO_ThrottleError, AdafruitIO_MQTTError
 import ssl
+import re
 
 try:
     from secrets import secrets
@@ -286,45 +288,74 @@ class Aio_mqtt():
 
     def __init__(self, pool, group='Default', loghandler=None):
 
-        # Initialize a new MQTT Client object
-        mqtt_client = MQTT.MQTT(
-            broker="io.adafruit.com",
-            username=secrets["aio_username"],
-            password=secrets["aio_key"],
-            socket_pool=pool,
-            ssl_context=ssl.create_default_context()
-        )
+        try:
+            # Initialize a new MQTT Client object
+            mqtt_client = MQTT.MQTT(
+                broker="io.adafruit.com",
+                username=secrets["aio_username"],
+                password=secrets["aio_key"],
+                socket_pool=pool,
+                ssl_context=ssl.create_default_context()
+            )
 
-        self.client = mqtt_client
-        self.group = group
-        self._user = secrets["aio_username"]
+            self.client = mqtt_client
+            self.group = group
+            self._user = secrets["aio_username"]
 
 
-        # MQTT event callbacks
-        self.client.on_connect = self.on_connect
-        self.client.on_disconnect = self.on_disconnect
-        self.client.on_message = self.on_message
-        self.client.on_subscribe = self.on_subscribe
-        self.client.on_unsubscribe = self.on_unsubscribe
-        self.connected = False
+            # MQTT event callbacks
+            self.client.on_connect = self.on_connect
+            self.client.on_disconnect = self.on_disconnect
+            self.client.on_message = self.on_message
+            self.client.on_subscribe = self.on_subscribe
+            self.client.on_unsubscribe = self.on_unsubscribe
+            self.connected = False
 
-        # Initialise some key variables
-        self.updated_feeds = {} # a list of recently modified feeds, for ready for parsing.
-        self.interval_minimum = 2 #Just an initial value, will be updated in code
-        self.throttled = False
+            # Initialise some key variables
+            self.updated_feeds = {} # a list of recently modified feeds, for ready for parsing.
+            self.interval_minimum = 2 #Just an initial value, will be updated in code
+            self.throttled = False
 
-        self.timer_publish = time.monotonic()
-        self.timer_throttled = time.monotonic()
-        self.timer_receive = 0
+            self.timer_publish = time.monotonic()
+            self.timer_throttled = time.monotonic()
+            self.timer_receive = 0
 
-        # Set up logging
-        self.log = logging.getLogger('aio_mqtt')
-        if loghandler:
-            self.log.addHandler(loghandler)
+            # Set up logging
+            self.log = logging.getLogger('aio_mqtt')
+            if loghandler:
+                self.log.addHandler(loghandler)
 
-        # Real Time Clock in ESP32-S2 can be used to track timestamps
-        self.rtc = rtc.RTC()
-        self.client.connect()
+            # Real Time Clock in ESP32-S2 can be used to track timestamps
+            self.rtc = rtc.RTC()
+            self.client.connect()
+        except Exception as e:
+            self.handle_exception(e)
+
+    def validate_connection(self, feed_key=None):
+
+        if not self.connected:
+            raise ConnectionError('MQTT Client not connected')
+
+        if self.throttled:
+            if (time.monotonic() - self.timer_throttled) >= 30:
+                # Reset the throttled flag if it has been over 30s
+                self.throttled = False
+                self.log.warning(f'Throttle flag released. minimum interval currently {self.interval_minimum}')    
+            else:
+                raise AdafruitIO_ThrottleError('MQTT Client currently throttled')
+
+        if feed_key:
+            """Validates a provided feed key against Adafruit IO's system rules.
+            https://learn.adafruit.com/naming-things-in-adafruit-io/the-two-feed-identifiers
+            """
+            if len(feed_key) > 128:  # validate feed key length
+                raise ValueError("Feed key must be less than 128 characters.")
+            if not bool(
+                re.match(r"^[a-zA-Z0-9-]+((\/|\.)[a-zA-Z0-9-]+)?$", feed_key)
+            ):  # validate key naming scheme
+                raise TypeError(
+                    "Feed key must contain English letters, numbers, dash, and a period or a forward slash."
+                )
 
     def on_connect(self, client, userdata, flags, return_code):
         # Connected function will be called when the client is connected to Adafruit IO.
@@ -367,18 +398,25 @@ class Aio_mqtt():
         if topic_name[1] == "groups":
             raise AdafruitIO_MQTTError('Groups currently not implemented')
         elif topic_name[1] == "throttle":
-            raise AdafruitIO_ThrottleError(payload)
+            self.interval_minimum += 1
+            self.throttled = True
+            self.timer_throttled = time.monotonic()
+            print(f'Got AIO Throttled Message: {payload}, setting {self.interval_minimum=}')
         elif topic_name[0] == "time":
             feed_id = topic_name[1]
             message = payload
         else:
-            feed_id = topic_name[2]
+            #strip off the group name
+            feed_id = topic_name[2].split(".")[1]
             message = payload
             
         # General parsing 
         if feed_id == 'seconds':
-            self.rtc.datetime = time.localtime(int(message))
-            print('RTC Synchronised')
+            try:
+                self.rtc.datetime = time.localtime(int(message))
+                print('RTC Synchronised')
+            except Exception as e:
+                print(f'RTC Synchronisation Error {e}')
 
         elif feed_id == f"{self.group}.ota":
             self.log.warning(f'got OTA request {payload}')
@@ -400,10 +438,13 @@ class Aio_mqtt():
         :param str feed_key: Adafruit IO feed key.
         :param str callback_method: Name of callback method.
         """
-        validate_feed_key(feed_key)
-        self.client.add_topic_callback(
-            f"{self._user}/f/{self.group}.{feed_key}", callback_method
-        )
+        try:
+            self.validate_connection(feed_key)
+            self.client.add_topic_callback(
+                f"{self._user}/f/{self.group}.{feed_key}", callback_method
+            )
+        except Exception as e:
+            self.handle_exception(e)
 
     def remove_feed_callback(self, feed_key):
         """Removes a previously registered callback method
@@ -414,95 +455,93 @@ class Aio_mqtt():
 
         :param str feed_key: Adafruit IO feed key.
         """
-        validate_feed_key(feed_key)
-        self.client.remove_topic_callback(f"{self._user}/f/{self.group}.{feed_key}")
+        try:
+            self.validate_connection(feed_key)
+            self.client.remove_topic_callback(f"{self._user}/f/{self.group}.{feed_key}")
+        except Exception as e:
+            self.handle_exception(e)        
 
     def sync(self, data_dict=None, loop_timeout=0, publish_interval=10):
-        if self.connected:
-            if self.throttled:
-                if (time.monotonic() - self.timer_throttled) >= 30:
-                    # Reset the throttled flag if it has been over 30s
-                    self.throttled = False
-                    self.log.warning(f'Throttle flag released. minimum interval currently {self.interval_minimum}')
-            try:
-                self.client.loop(loop_timeout)
-                if data_dict:
-                    self.publish_feeds(data_dict, location=None, interval=publish_interval)
-            except Exception as e:
-                self.handle_exception(e)
+        try:
+            self.validate_connection()
+            self.client.loop(loop_timeout)
+            if data_dict:
+                self.publish_feeds(data_dict, location=None, interval=publish_interval)
+        except Exception as e:
+            self.handle_exception(e)
 
     def publish(self, feed_key, data, metadata=None):
-        
-        validate_feed_key(feed_key)
-        if metadata is not None:
-            csv_string = f"{data},{metadata}"
-            self.client.publish(
-                f"{self._user}/f/{self.group}.{feed_key}/csv", csv_string
-            )
-        else:
-            self.client.publish(f"{self._user}/f/{self.group}.{feed_key}", data)   
+        try:
+            self.validate_connection(feed_key)
+            if metadata is not None:
+                csv_string = f"{data},{metadata}"
+                self.client.publish(
+                    f"{self._user}/f/{self.group}.{feed_key}/csv", csv_string
+                )
+            else:
+                self.client.publish(f"{self._user}/f/{self.group}.{feed_key}", data)
+        except Exception as e:
+            self.handle_exception(e)
 
     def publish_feeds(self, feeds, location=None, interval=10):
         '''
         sends a dictionary of feeds to AIO, one by one.
         '''
-        if self.connected:
-            if not self.throttled:
-                if interval < self.interval_minimum:
-                    self.log.warning(f'publish interval clamped to {self.interval_minimum}s due to throttling')
-                    interval = self.interval_minimum
+        try:
+            self.validate_connection()
+            if interval < self.interval_minimum:
+                self.log.warning(f'publish interval clamped to {self.interval_minimum}s due to throttling')
+                interval = self.interval_minimum
 
-                if (time.monotonic() - self.timer_publish) >= interval:
-                    self.timer_publish = time.monotonic()
-                    self.log.info(f"Publishing to AIO:")
-                    try:
-                        for feed_id in sorted(feeds):
-                            if self.group:
-                                full_name = f'{self.group}.{feed_id}'
-                            else:
-                                full_name = feed_id
-                            self.publish(full_name, str(feeds[feed_id]), metadata=location)
-                            self.log.info(f"{feeds[feed_id]} --> {full_name}")
-                        if location:
-                            self.log.info(f"with location = {location}")
-                    except Exception as e:
-                        self.handle_exception(e)
-                else:
-                    self.log.debug(f"Did not publish, interval set to {interval}s"
-                                    +f" Time remaining: {int(interval - (time.monotonic() - self.timer_publish))}s")
+            if (time.monotonic() - self.timer_publish) >= interval:
+                self.timer_publish = time.monotonic()
+                self.log.info(f"Publishing to AIO:")
+                try:
+                    for feed_id in sorted(feeds):
+                        self.publish(feed_id, str(feeds[feed_id]), metadata=location)
+                        self.log.info(f"{feeds[feed_id]} --> {self.group}{feed_id}")
+                    if location:
+                        self.log.info(f"with location = {location}")
+                except Exception as e:
+                    self.handle_exception(e)
             else:
-                self.log.warning(f'Did not publish, throttled flag = {self.throttled}')
-        else:
-            self.log.warning(f"AIO not connected")
+                self.log.debug(f"Did not publish, interval set to {interval}s"
+                                +f" Time remaining: {int(interval - (time.monotonic() - self.timer_publish))}s")
+        except Exception as e:
+            self.handle_exception(e)
 
     def publish_long(self, feed_key, feed_data):
-
-        if not self.throttled:
+        try:
             chunks = []
             while (len(feed_data) > 1023):
                 chunks.append(feed_data[:1023])
                 feed_data = feed_data[1023:]
             chunks.append(feed_data[:1023])
             self.log.info(f"Publishing data to AIO in {len(chunks)} chunks")
-            try:
-                for c in chunks:
-                    self.send_data(feed_key, c)
-            except Exception as e:
-                self.handle_exception(e)
+            for c in chunks:
+                self.publish(feed_key, c)
+        except Exception as e:
+            self.handle_exception(e)
 
     def subscribe(self, feed_key, get_latest=True):
-        validate_feed_key(feed_key)
-        feed = f"{self._user}/f/{self.group}.{feed_key}"
-        self.client.subscribe(feed)
+        try:
+            self.validate_connection(feed_key)
+            feed = f"{self._user}/f/{self.group}.{feed_key}"
+            self.client.subscribe(feed)
 
-        # Request latest value from the feed
-        if get_latest:
-            self.get(feed_key)
+            # Request latest value from the feed
+            if get_latest:
+                self.get(feed_key)
+        except Exception as e:
+            self.handle_exception(e)         
 
     def unsubscribe(self, feed_key):
-        validate_feed_key(feed_key)
-        feed = f"{self._user}/f/{self.group}.{feed_key}"
-        self.client.unsubscribe(feed)
+        try:
+            self.validate_connection(feed_key)
+            feed = f"{self._user}/f/{self.group}.{feed_key}"
+            self.client.unsubscribe(feed)
+        except Exception as e:
+            self.handle_exception(e)
 
     def send_data(self, feed_key, data, metadata=None, precision=None):
         """
@@ -522,14 +561,20 @@ class Aio_mqtt():
         value on feed_key.
         https://io.adafruit.com/api/docs/mqtt.html#retained-values
         """
-        validate_feed_key(feed_key)
-        self.client.publish(f"{self._user}/f/{self.group}.{feed_key}/get", "\0")
+        try:
+            self.validate_connection(feed_key)
+            self.client.publish(f"{self._user}/f/{self.group}.{feed_key}/get", "\0")
+        except Exception as e:
+            self.handle_exception(e)
 
     def time_sync(self):
-        #This will automatically unsubscribe after a successful RTC sync
-        self.client.subscribe("time/seconds")
-        time.sleep(1)
-        self.client.unsubscribe("time/seconds")
+        try:
+            self.validate_connection()
+            self.client.subscribe("time/seconds")
+            time.sleep(1)
+            self.client.unsubscribe("time/seconds")
+        except Exception as e:
+            self.handle_exception(e)
 
     def display(self, message):
         # Special log command with custom level, to request sending to attached display
@@ -538,21 +583,33 @@ class Aio_mqtt():
 
 
     def handle_exception(self, e):
-        # formats an exception to print to log as an error,
-        # includues the traceback (to show code line number)
-        self.log.error(traceback.format_exception(None, e, e.__traceback__))
 
+        self.log.info(traceback.format_exception(None, e, e.__traceback__))
         cl = e.__class__
-        if cl == RuntimeError:
-            self.log.warning('runtime error, try reconnecting wifi? or hard reset')
+
+        if cl == ConnectionError:
+            self.connected = False
+            # Essentially a 'pass'
+            self.log.debug('ConnectionError, client not connected')
+
+        elif cl == OSError:
+            self.connected = False
+            # Often caused by wifi not being connected
+            self.log.warning('OSError, try reconnecting wifi? or hard reset')
+
+        elif cl == RuntimeError:
+            self.connected = False
+            self.log.warning('RuntimeError, try reconnecting wifi? or hard reset')
             # raise ConnectionError(f"AIO runtime error {e}")
-            microcontroller.reset()
+            # microcontroller.reset()
+
+        elif cl == MMQTTException:
+            self.connected = False
+            self.log.warning('MQTTException, try reconnecting wifi? or hard reset')
 
         elif cl == AdafruitIO_ThrottleError:
-            self.interval_minimum += 1
-            self.throttled = True
-            self.timer_throttled = time.monotonic()
-            self.log.warning(f'AIO Throttled, increasing publish interval to {self.interval_minimum}')
+            self.log.warning(f"ThrottleError, remaining throttle time: {30 - (time.monotonic() - self.timer_throttled)}s")
+            pass
 
         elif cl == IndexError:
             self.log.error(f'AIO feed limit may have been reached')
