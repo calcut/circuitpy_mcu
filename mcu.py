@@ -125,14 +125,17 @@ class Mcu():
 
     def aio_setup(self, aio_group=None, http=False):
         try:
-            if not self.wifi.connectivity_check(host='adafruit.com'):
-                self.log.info('aio_setup cancelled: no wifi connection')
-                return False
+
+            # if not self.wifi.connectivity_check(host='adafruit.com'):
+            #     self.log.info('aio_setup cancelled: no wifi connection')
+            #     return False
 
             if aio_group:
                 self.aio_group = aio_group
             if self.aio_group == None:
                 self.aio_group = self.id
+
+            self.log.info(f"Setting up AIO connection with group={self.aio_group}")
 
             if http:
                 self.aio = Aio_http(self.wifi.requests, self.aio_group, self.loghandler)
@@ -142,7 +145,6 @@ class Mcu():
             self.loghandler.aio = self.aio
             self.aio.rtc = self.rtc
             self.aio.time_sync()
-            self.log.info(f"AIO connection set up with group={aio_group}")
             return True
 
         except Exception as e:
@@ -167,7 +169,23 @@ class Mcu():
             self.handle_exception(e)
             self.aio_sync_http()
 
+    def aio_sync(self, data_dict, publish_interval=10):
+        try:
+            # if not self.wifi.connectivity_check(host='adafruit.com'):
+            #     self.log.info('aio_sync cancelled: no wifi connection')
+            #     return False
+            if not self.aio:
+                self.log.error('please run aio_setup first')
+                return False
+            if not self.aio.connected:
+                self.log.warning('AIO not connected, trying to reconnect now')
+                self.aio_setup()
 
+            self.aio.sync(data_dict, loop_timeout=0, publish_interval=publish_interval)
+            return True
+
+        except Exception as e:
+            self.handle_exception(e)
 
     def i2c_power_on(self):
         # Due to board rev B/C differences, need to read the initial state
