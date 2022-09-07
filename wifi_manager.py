@@ -17,6 +17,8 @@ except ImportError:
     print("WiFi secrets are kept in secrets.py, please add them there!")
     raise
 
+#pinging too fast can cause a hardfault https://github.com/adafruit/circuitpython/issues/5980
+MAX_PING_RATE = 0.5 #seconds, 
 
 class Wifi_manager():
     def __init__(self, loghandler=None, offline_retry_connection=60, max_errors=3):
@@ -36,6 +38,10 @@ class Wifi_manager():
         self.max_errors = max_errors #How many ConnectionErrors before going into offline mode
         # self.offline_retry_connection = False #hard reset after max_errors exceeded
         self.offline_retry_connection = offline_retry_connection #seconds
+
+        self.pool = socketpool.SocketPool(wifi.radio)
+        self.requests = adafruit_requests.Session(self.pool, ssl.create_default_context())
+        self.timer_ping = 0
 
 
     def wifi_scan(self):
@@ -69,13 +75,21 @@ class Wifi_manager():
 
             ip_str = self.pool.getaddrinfo(host, port)[0][4][0]
             ping_addr = ipaddress.ip_address(ip_str)
-            for i in range(3):
-                # try up to 3 times to get a ping
-                ping = wifi.radio.ping(ping_addr, timeout=1)
-                if i > 0:
-                    self.log.debug(f'{i=}, {ping} took several attempts to ping')
-                if ping:
-                    break
+
+            i = 0
+            while True:
+                if (time.monotonic() - self.timer_ping) > MAX_PING_RATE:
+                    i +=1
+                    ping = wifi.radio.ping(ping_addr, timeout=1)
+                    self.timer_ping = time.monotonic()
+                    if ping:
+                        break
+                    if i >= 5:
+                        break
+                    time.sleep(MAX_PING_RATE)
+
+            if i > 1:
+                self.log.debug(f'{i=}, {ping} took several attempts to ping')
             if not ping:
                 self.connected = False
                 raise ConnectionError(f"No ping response received from {host} {ip_str}")
