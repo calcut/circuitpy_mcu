@@ -22,6 +22,9 @@ except ImportError:
 __version__ = "0.0.0-auto.0"
 __repo__ = "https://github.com/calcut/circuitpy-mcu"
 
+class AIOdisconnectedError(Exception):
+    pass
+
 class Aio_http(IO_HTTP):
     '''
     A wrapper for IO_HTTP providing MQTT like behaviour with subscriptions
@@ -61,6 +64,8 @@ class Aio_http(IO_HTTP):
             self.subscribe('ota')
         if loghandler:
             self.create_and_get_feed('log')
+
+        self.connected = True
 
 
     def create_and_get_group(self, group_key):
@@ -312,6 +317,7 @@ class Aio_mqtt():
             self.connected = False
 
             # Initialise some key variables
+            self.subscribed_feeds = [] # Remember subscribed feeds to resubscribe if reconnecting.
             self.updated_feeds = {} # a list of recently modified feeds, for ready for parsing.
             self.interval_minimum = 2 #Just an initial value, will be updated in code
             self.throttled = False
@@ -327,14 +333,22 @@ class Aio_mqtt():
 
             # Real Time Clock in ESP32-S2 can be used to track timestamps
             self.rtc = rtc.RTC()
-            self.client.connect()
+            # self.client.connect()
         except Exception as e:
             self.handle_exception(e)
 
-    def validate_connection(self, feed_key=None):
+    def connect(self):
+        try:
+            self.client.connect()
+            self.time_sync()
+            for feed in self.subscribed_feeds:
+                self.subscribe(feed)
+        except Exception as e:
+            self.handle_exception(e)    
 
+    def validate_connection(self, feed_key=None):
         if not self.connected:
-            raise ConnectionError('MQTT Client not connected')
+            raise AIOdisconnectedError('MQTT Client not connected')
 
         if self.throttled:
             if (time.monotonic() - self.timer_throttled) >= 30:
@@ -368,7 +382,7 @@ class Aio_mqtt():
         self.display("Connected to AIO")
         self.client.subscribe(f"{self._user}/throttle")
         self.client.subscribe(f"{self._user}/errors")
-        self.subscribe(f"ota", get_latest=False) #Listen for requests for over the air updates
+        self.client.subscribe(f"{self._user}/f/{self.group}.ota")
 
     def on_subscribe(self, client, user_data, topic, granted_qos):
         print(f"Subscribed to {topic} with QOS level {granted_qos}")
@@ -526,9 +540,10 @@ class Aio_mqtt():
     def subscribe(self, feed_key, get_latest=True):
         try:
             self.validate_connection(feed_key)
+            if not feed_key in self.subscribed_feeds:
+                self.subscribed_feeds.append(feed_key)
             feed = f"{self._user}/f/{self.group}.{feed_key}"
             self.client.subscribe(feed)
-
             # Request latest value from the feed
             if get_latest:
                 self.get(feed_key)
@@ -587,25 +602,26 @@ class Aio_mqtt():
         self.log.info(traceback.format_exception(None, e, e.__traceback__))
         cl = e.__class__
 
-        if cl == ConnectionError:
-            self.connected = False
+        if cl == AIOdisconnectedError:
+            self.log.debug('AIOdisconnectedError, client not connected')
             # Essentially a 'pass'
-            self.log.debug('ConnectionError, client not connected')
+
+        elif cl == ConnectionError:
+            self.connected = False
+            raise ConnectionError("AIO ConnectionError, WiFi reconnection requested")
 
         elif cl == OSError:
             self.connected = False
             # Often caused by wifi not being connected
-            self.log.warning('OSError, try reconnecting wifi? or hard reset')
+            raise ConnectionError("AIO OSError, WiFi reconnection requested")
 
         elif cl == RuntimeError:
             self.connected = False
-            self.log.warning('RuntimeError, try reconnecting wifi? or hard reset')
-            # raise ConnectionError(f"AIO runtime error {e}")
-            # microcontroller.reset()
+            raise ConnectionError("AIO RuntimeError, WiFi reconnection requested")
 
         elif cl == MMQTTException:
             self.connected = False
-            self.log.warning('MQTTException, try reconnecting wifi? or hard reset')
+            raise ConnectionError("AIO MQTTException, Wifi reconnection requested")
 
         elif cl == AdafruitIO_ThrottleError:
             self.log.warning(f"ThrottleError, remaining throttle time: {30 - (time.monotonic() - self.timer_throttled)}s")

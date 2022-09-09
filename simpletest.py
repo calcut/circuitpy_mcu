@@ -37,8 +37,9 @@ def main():
 
     # Networking Setup
     mcu.wifi.connect()
-    mcu.aio_setup(aio_group=f'{AIO_GROUP}-{mcu.id}')
-    mcu.aio.subscribe('led-color')
+    if mcu.aio_setup(aio_group=f'{AIO_GROUP}-{mcu.id}'):
+        mcu.aio.connect()
+        mcu.aio.subscribe('led-color')
 
     def usb_serial_parser(string):
         mcu.log.info(f'USBserial: {string}')
@@ -52,7 +53,8 @@ def main():
                     r = int(payload[1:3], 16)
                     g = int(payload[3:5], 16)
                     b = int(payload[5:], 16)
-                    mcu.display.set_fast_backlight_rgb(r, g, b)
+                    if mcu.display:
+                        mcu.display.set_fast_backlight_rgb(r, g, b)
                     mcu.pixel[0] = int(payload[1:], 16)
                     # mcu.pixel[0] = (r<<16) + (g<<8) + b
 
@@ -61,19 +63,21 @@ def main():
 
 
     mcu.booting = False # Stop accumulating boot log messages
-    mcu.aio.publish_long('log', mcu.logdata) # Send the boot log
+    if mcu.aio is not None:
+        mcu.aio.publish_long('log', mcu.logdata) # Send the boot log
 
     timer_A=0
 
     while True:
         mcu.service(serial_parser=usb_serial_parser)
-        mcu.aio.sync(mcu.data, publish_interval=10)
 
         if time.monotonic() - timer_A > 1:
             timer_A = time.monotonic()
+            mcu.led.value = not mcu.led.value #heartbeat LED
             timestamp = mcu.get_timestamp()
             mcu.data['debug'] = timestamp
             mcu.display_text(timestamp)
+            mcu.aio_sync(mcu.data, publish_interval=10)
             # mcu.aio_sync_http(receive_interval=10, publish_interval=10)
             parse_feeds()
 

@@ -125,11 +125,6 @@ class Mcu():
 
     def aio_setup(self, aio_group=None, http=False):
         try:
-
-            # if not self.wifi.connectivity_check(host='adafruit.com'):
-            #     self.log.info('aio_setup cancelled: no wifi connection')
-            #     return False
-
             if aio_group:
                 self.aio_group = aio_group
             if self.aio_group == None:
@@ -144,7 +139,9 @@ class Mcu():
             self.aio.log.setLevel(self.log.level)
             self.loghandler.aio = self.aio
             self.aio.rtc = self.rtc
-            self.aio.time_sync()
+            if not self.wifi.connectivity_check(host='adafruit.com'):
+                raise ConnectionError('aio_setup: WiFi reconnection requested')
+            self.aio.connect()
             return True
 
         except Exception as e:
@@ -171,15 +168,16 @@ class Mcu():
 
     def aio_sync(self, data_dict, publish_interval=10):
         try:
-            # if not self.wifi.connectivity_check(host='adafruit.com'):
-            #     self.log.info('aio_sync cancelled: no wifi connection')
-            #     return False
+            if self.wifi.offline_mode:
+                self.log.debug('aio_sync cancelled: wifi in offline mode')
+                self.wifi.connectivity_check()
+                return False
             if not self.aio:
                 self.log.error('please run aio_setup first')
                 return False
             if not self.aio.connected:
-                self.log.warning('AIO not connected, trying to reconnect now')
-                self.aio_setup()
+                self.log.warning('AIO not connected, trying to connect now')
+                self.aio.connect()
 
             self.aio.sync(data_dict, loop_timeout=0, publish_interval=publish_interval)
             return True
@@ -327,13 +325,15 @@ class Mcu():
 
             newpath = f'{archive_dir}/{newfile}'
 
-            with open(filepath, 'r') as f:
-                lines = f.readlines()
-                self.log.info(f'---Last 10 lines of previous log {filepath}---')
-                for l in lines[-10:]:
-                    self.log.info(l[:-1])
-                self.log.info('--End of Previous log---')
-
+            try:
+                with open(filepath, 'r') as f:
+                    lines = f.readlines()
+                    self.log.info(f'---Last 10 lines of previous log {filepath}---')
+                    for l in lines[-10:]:
+                        self.log.info(l[:-1])
+                    self.log.info('--End of Previous log---')
+            except MemoryError as e:
+                self.log.warning('MemoryError reading file before archive: size may be too big')
 
             os.rename(filepath, newpath)
             self.log.info(f'{filepath} moved to {newpath}')
@@ -420,14 +420,10 @@ class Mcu():
 
     def handle_exception(self, e):
 
-
         cl = e.__class__
         if cl == ConnectionError:
-            self.log.warning(f'ConnectionError at mcu level')
-            self.log.error(traceback.format_exception(None, e, e.__traceback__))
-            self.wifi.connection_error_count += 1
-            self.log.info(f'{self.wifi.connection_error_count=}')
-
+            self.log.warning(f'ConnectionError at mcu level, forwarding to wifi handler')
+            self.wifi.handle_exception(e)
         else:
             # formats an exception to print to log as an error,
             # includues the traceback (to show code line number)
@@ -480,6 +476,7 @@ class McuLogHandler(logging.Handler):
         #   AND we are not currently throttled
         if (self.device.aio
             and self.device.wifi.connected
+            and self.device.aio.connected
             and not self.device.aio.throttled
             and record.levelno >= logging.WARNING):
             
