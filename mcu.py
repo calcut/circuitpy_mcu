@@ -482,7 +482,7 @@ class McuLogHandler(logging.Handler):
             
             try:
                 print('debug - sending log to AIO')
-                self.device.aio.send_data(f'{self.device.aio.group}.log', text)
+                self.device.aio.publish('log', text)
             except Exception as e:
                 print(f'Error publishing to AIO log: {e}')
 
