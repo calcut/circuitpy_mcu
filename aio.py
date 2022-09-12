@@ -513,7 +513,7 @@ class Aio_mqtt():
                 try:
                     for feed_id in sorted(feeds):
                         self.publish(feed_id, str(feeds[feed_id]), metadata=location)
-                        self.log.info(f"{feeds[feed_id]} --> {self.group}{feed_id}")
+                        self.log.info(f"{feeds[feed_id]} --> {self.group}.{feed_id}")
                     if location:
                         self.log.info(f"with location = {location}")
                 except Exception as e:
