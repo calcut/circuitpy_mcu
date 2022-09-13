@@ -99,8 +99,7 @@ class Wifi_manager():
 
         except Exception as e:
             self.handle_exception(e)
-            # Try again after reconnection
-            return (self.connectivity_check())
+            return False
 
 
     def connect(self, attempts=4, scan=True):
@@ -173,6 +172,12 @@ class Wifi_manager():
 
     def handle_exception(self, e):
         cl = e.__class__
+
+        if cl == OSError:
+            self.log.error(traceback.format_exception(None, e, e.__traceback__))
+            self.log.critical(f"Wifi OSError, Hard resetting now")
+            microcontroller.reset()
+
         if cl == ConnectionError:
             if self.offline_mode:
                 self.log.warning(f"ConnectionError: {e}, ignoring becuase {self.offline_mode=}")
