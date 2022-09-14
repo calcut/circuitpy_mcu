@@ -85,6 +85,13 @@ class Bootloader():
             self.display = None
 
         try:
+            self.led = digitalio.DigitalInOut(board.LED)
+            self.led.direction = digitalio.Direction.OUTPUT
+            self.led.value = False
+        except Exception as e:
+            print(f'heartbeat LED error: {e}')
+
+        try:
             self.get_ota_list(url)
             i2c_power.deinit()
             i2c.deinit()
@@ -227,6 +234,8 @@ class Bootloader():
 
             for path, item_url in ota_list.items():
                 microcontroller.watchdog.feed()
+                if self.led:
+                    self.led.value = not self.led.value
                 self.mkdir_parents(path)
                 print(f'saving {item_url} to {path}')
                 url_list = item_url.split('/')
