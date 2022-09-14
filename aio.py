@@ -623,6 +623,10 @@ class Aio_mqtt():
             self.connected = False
             raise ConnectionError("AIO MQTTException, Wifi reconnection requested")
 
+        elif cl == MemoryError:
+            self.connected = False
+            raise ConnectionError("AIO MemoryError, Wifi reconnection requested")
+
         elif cl == AdafruitIO_ThrottleError:
             self.log.warning(f"ThrottleError, remaining throttle time: {30 - (time.monotonic() - self.timer_throttled)}s")
             pass
