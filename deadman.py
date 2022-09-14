@@ -2,14 +2,14 @@ import board
 import time
 from digitalio import DigitalInOut, Pull
 
-DEBUG = False
-# DEBUG = True
+# DEBUG = False
+DEBUG = True
 
 
-detect_pin = DigitalInOut(board.D11)
+detect_pin = DigitalInOut(board.A1)
 detect_pin.switch_to_input(Pull.UP)
 
-output_enable_pin = DigitalInOut(board.D12)
+output_enable_pin = DigitalInOut(board.A0)
 output_enable_pin.switch_to_output(True)
 
 
@@ -23,7 +23,7 @@ if DEBUG:
     timer_feed = 0
 
 
-timer = 0
+timer = time.monotonic()
 while True:
 
     # simulate a main board toggling a pin should not be faster than every second.
@@ -39,9 +39,9 @@ while True:
         # reset the timer if a toggle is detected
         timer = time.monotonic()
 
-    if time.monotonic() - timer > 240:
+    if time.monotonic() - timer > 120:
         timer = time.monotonic()
-        print('no toggle for 4 mins, pulling down output_enable pin for 3s')
+        print('no toggle for 2 mins, pulling down output_enable pin for 3s')
         output_enable_pin.value = False
         for x in range(30):
             led.value = not led.value
