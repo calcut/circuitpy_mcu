@@ -410,6 +410,7 @@ class Aio_mqtt():
         # Initial parsing to handle non-standard feed / topics
         topic_name = topic.split("/")
         feed_id = topic_name
+        message = payload
         if topic_name[1] == "groups":
             raise AdafruitIO_MQTTError('Groups currently not implemented')
         elif topic_name[1] == "throttle":
