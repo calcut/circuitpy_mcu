@@ -45,7 +45,7 @@ class Aio_http(IO_HTTP):
         self.interval_minimum = 2 #Just an initial value, will be updated in code
         self.throttled = False
 
-        self.timer_publish = time.monotonic()
+        self.timer_publish = -100 #negative so publish happens immediately
         self.timer_throttled = time.monotonic()
         self.timer_receive = 0
 
@@ -322,7 +322,7 @@ class Aio_mqtt():
             self.interval_minimum = 2 #Just an initial value, will be updated in code
             self.throttled = False
 
-            self.timer_publish = time.monotonic()
+            self.timer_publish = -100 #negative so publish happens immediately
             self.timer_throttled = time.monotonic()
             self.timer_receive = 0
 
