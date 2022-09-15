@@ -416,6 +416,7 @@ class Aio_mqtt():
             self.throttled = True
             self.timer_throttled = time.monotonic()
             print(f'Got AIO Throttled Message: {payload}, setting {self.interval_minimum=}')
+            return
         elif topic_name[0] == "time":
             feed_id = topic_name[1]
             message = payload
