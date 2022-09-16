@@ -21,7 +21,7 @@ except ImportError:
 MAX_PING_RATE = 0.5 #seconds, 
 
 class Wifi_manager():
-    def __init__(self, loghandler=None, offline_retry_connection=60, max_errors=3):
+    def __init__(self, loghandler=None, offline_retry_connection=60, max_errors=12):
 
 
         # Set up logging
@@ -35,8 +35,7 @@ class Wifi_manager():
         self.timer_offline = time.monotonic()
 
         self.connection_error_count = 0
-        self.max_errors = max_errors #How many ConnectionErrors before going into offline mode
-        # self.offline_retry_connection = False #hard reset after max_errors exceeded
+        self.max_errors = max_errors #How many ConnectionErrors before hard resetting
         self.offline_retry_connection = offline_retry_connection #seconds
 
         self.pool = socketpool.SocketPool(wifi.radio)
@@ -73,8 +72,11 @@ class Wifi_manager():
             if not self.connected:
                 raise ConnectionError(f"{self.connected=}")
 
-            ip_str = self.pool.getaddrinfo(host, port)[0][4][0]
-            ping_addr = ipaddress.ip_address(ip_str)
+            try:
+                ip_str = self.pool.getaddrinfo(host, port)[0][4][0]
+                ping_addr = ipaddress.ip_address(ip_str)
+            except OSError as e:
+                raise ConnectionError(f"OSError in connectivity_check: {e}")
 
             i = 0
             while True:
@@ -185,13 +187,12 @@ class Wifi_manager():
                 self.connection_error_count +=1
                 self.log.warning(f"ConnectionError: {e}, {self.connection_error_count=}/{self.max_errors}")
                 if self.connection_error_count >= self.max_errors:
-                    if self.offline_retry_connection == False:
-                        self.log.warning(f"Hard resetting")
-                        microcontroller.reset()
+                    self.log.warning(f"Hard resetting")
+                    microcontroller.reset()
+                if (self.connection_error_count % 3) == 0 :
                     self.log.warning(f"Entering offline mode")
                     self.offline_mode=True
                     self.timer_offline = time.monotonic()
-                    self.connection_error_count = 0
                     return
                 self.connect()      
 
