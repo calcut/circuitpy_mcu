@@ -629,7 +629,7 @@ class Aio_mqtt():
             raise ConnectionError("AIO MemoryError, Wifi reconnection requested")
 
         elif cl == AdafruitIO_ThrottleError:
-            self.log.warning(f"ThrottleError, remaining throttle time: {30 - (time.monotonic() - self.timer_throttled)}s")
+            self.log.debug(f"ThrottleError, remaining throttle time: {30 - (time.monotonic() - self.timer_throttled)}s")
             pass
 
         elif cl == IndexError:
@@ -639,9 +639,3 @@ class Aio_mqtt():
             self.log.warning('Unhandled AIO exception, performing hard reset')
             # raise ConnectionError(f"Unhandled AIO Exception {e}")
             microcontroller.reset()
-
-
-
-
-
-  
