@@ -243,7 +243,7 @@ class Aio_http(IO_HTTP):
             # Clamp the minimum interval based on number of feeds and a
             # rate of 30 updates per minute for AIO free version.
             if interval < self.interval_minimum:
-                self.log.warning(f'publish interval clamped to {self.interval_minimum}s due to throttling')
+                self.log.debug(f'publish interval clamped to {self.interval_minimum}s due to throttling')
                 interval = self.interval_minimum
 
             if (time.monotonic() - self.timer_publish) >= interval:
