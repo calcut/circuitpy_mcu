@@ -268,4 +268,5 @@ class Bootloader():
                 time.sleep(10)
             except:
                 pass
-            raise
+            # don't raise - want to continue to boot if no wifi is available.
+            # raise
