@@ -166,6 +166,12 @@ class Mcu():
             self.handle_exception(e)
             self.aio_sync_http()
 
+    def aio_subscribe(self, feed_key, get_latest=True):
+        try:
+            self.aio.subscribe(feed_key, get_latest=get_latest)
+        except Exception as e:
+            self.handle_exception(e)
+
     def aio_sync(self, data_dict, publish_interval=10):
         try:
             if self.wifi.offline_mode:
