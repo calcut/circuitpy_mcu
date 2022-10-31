@@ -136,7 +136,7 @@ class Mcu():
                 self.aio = Aio_http(self.wifi.requests, self.aio_group, self.loghandler)
             else:
                 self.aio = Aio_mqtt(self.wifi.pool, self.aio_group, self.loghandler)
-            self.aio.log.setLevel(self.log.level)
+            self.aio.log.setLevel(self.log.getEffectiveLevel())
             self.loghandler.aio = self.aio
             self.aio.rtc = self.rtc
             if not self.wifi.connectivity_check(host='adafruit.com'):
