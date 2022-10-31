@@ -70,7 +70,7 @@ class Mcu():
         self.log = logging.getLogger('mcu')
         self.loghandler = McuLogHandler(self)
         self.log.addHandler(self.loghandler)
-        self.log.level = loglevel
+        self.log.setLevel(loglevel)
 
         # Pull the I2C power pin low to enable I2C power
         self.log.info('Powering up I2C bus')
@@ -103,7 +103,7 @@ class Mcu():
 
         if wifi:
             self.wifi = Wifi_manager(loghandler=self.loghandler)
-            self.wifi.log.setLevel(self.log.level)
+            self.wifi.log.setLevel(loglevel)
         else:
             self.wifi = None
 
