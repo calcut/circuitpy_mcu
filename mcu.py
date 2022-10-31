@@ -186,6 +186,9 @@ class Mcu():
                 self.aio.connect()
 
             self.aio.sync(data_dict, loop_timeout=0, publish_interval=publish_interval)
+            
+            # clear the dict after sync (to prevent sending duplicate values next time)
+            data_dict = {}
             return True
 
         except Exception as e:
