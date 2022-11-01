@@ -4,7 +4,9 @@ import ssl
 import socketpool
 import wifi
 import neopixel
-# import board
+import board
+import digitalio
+import busio
 import microcontroller
 from watchdog import WatchDogMode, WatchDogTimeout
 import traceback
@@ -60,11 +62,12 @@ class Bootloader():
     def __init__(self, url):
         enable_watchdog(timeout=120)
 
+        i2c = None
+        i2c_power = None
+
         try:
             from sparkfun_serlcd import Sparkfun_SerLCD_I2C
-            import digitalio
-            import board
-            import busio
+
 
             # Ensure I2C is powered on, regardless of board rev
             i2c_power = digitalio.DigitalInOut(board.I2C_POWER)
@@ -85,9 +88,18 @@ class Bootloader():
             self.display = None
 
         try:
+            self.led = digitalio.DigitalInOut(board.LED)
+            self.led.direction = digitalio.Direction.OUTPUT
+            self.led.value = False
+        except Exception as e:
+            print(f'heartbeat LED error: {e}')
+
+        try:
             self.get_ota_list(url)
-            i2c_power.deinit()
-            i2c.deinit()
+            if i2c_power:
+                i2c_power.deinit()
+            if i2c:
+                i2c.deinit()
 
         except WatchDogTimeout:
             print('Code Stopped by WatchDog Timeout during OTA update!')
@@ -227,6 +239,8 @@ class Bootloader():
 
             for path, item_url in ota_list.items():
                 microcontroller.watchdog.feed()
+                if self.led:
+                    self.led.value = not self.led.value
                 self.mkdir_parents(path)
                 print(f'saving {item_url} to {path}')
                 url_list = item_url.split('/')
@@ -254,4 +268,5 @@ class Bootloader():
                 time.sleep(10)
             except:
                 pass
-            raise
+            # don't raise - want to continue to boot if no wifi is available.
+            # raise
