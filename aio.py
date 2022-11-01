@@ -272,13 +272,13 @@ class Aio_http(IO_HTTP):
 
                 if location:
                     self.log.info(f"with location = {location}")
+                return True
 
             else:
                 self.log.debug(f"Waiting to publish, interval set to {interval}s"
                                 +f" Time remaining: {int(interval - (time.monotonic() - self.timer_publish))}s")
         else:
             self.log.warning(f'Did not publish, throttled flag = {self.throttled}')
-            
 
 class Aio_mqtt():
     '''
