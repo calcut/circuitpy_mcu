@@ -42,87 +42,81 @@ def main():
     ncm = Notecard_manager(loghandler=mcu.loghandler, i2c=mcu.i2c)
 
     # environment variables, with a default value (to be overridden by notehub)
-    env_vars = {
+    environment_default = {
         'pump1-speed' : "0.54",
         'pump2-speed' : "0.55",
         'pump3-speed' : "0.56",
     }
 
-    ncm.env_vars = env_vars
-
     # set some defaults
-    ncm.set_default_envs(env_vars)
+    ncm.set_default_envs(environment_default)
 
     timer_A=0
     timer_B=0
     timer_C=0
 
+    def parse_environment():
+
+        for key in ncm.environment.keys():
+            val = ncm.environment.pop(key)
+            mcu.log.info(f"environment update: {key} = {val}")
+
+            if key == 'pump1-speed':
+                speed = float(val)
+                print(f'Adjusting pump 1 speed to {speed}')
+
+            if key == 'pump2-speed':
+                speed = float(val)
+                print(f'Adjusting pump 2 speed to {speed}')
+
+    def parse_inbound_note(notefile="data.qi"):
+
+        note = ncm.inbound_notes[notefile]
+        if type(note) == dict:
+            for key in note.keys():
+                val = note.pop(key)
+                mcu.log.info(f"parsing {notefile}: {key} = {val}")
+
+                if key == 'test':
+                    mcu.log.info(f"Test success! val = {val}")
+
+
+
     while True:
         mcu.service()
-        if time.monotonic() - timer_A > 5:
+        if time.monotonic() - timer_A > 1:
             timer_A = time.monotonic()
             mcu.led.value = not mcu.led.value #heartbeat LED
+
             timestamp = mcu.get_timestamp()
             mcu.display_text(timestamp)
 
-            temp = 0.123
-            humidity = 0.456
-            mcu.data['temp'] = temp
-            mcu.data['humidity'] = humidity
+            mcu.data['temp'] = 0.123
+            mcu.data['humidity'] = 0.456
             mcu.data['ts'] = timestamp
 
 
-        if time.monotonic() - timer_B > 20:
+        if time.monotonic() - timer_B > 30:
             timer_B = time.monotonic()
             timestamp = mcu.get_timestamp()
-            ncm.send_note(mcu.data)
-            # note.add(ncard, "sensors.qo", { "temp": temp, "time": timestamp}, sync=False)
+            ncm.send_note(mcu.data, sync=True)
 
-        if time.monotonic() - timer_C > 30:
+        if time.monotonic() - timer_C > 10:
             timer_C = time.monotonic()
-            timestamp = mcu.get_timestamp()
+            # timestamp = mcu.get_timestamp()
             mcu.log.info(f"servicing notecard now {timestamp}")
-            ncm.service()
+            # ncm.service()
 
+            ncm.receive_note()
+            parse_inbound_note()
 
+            ncm.receive_environment()
+            parse_environment()
 
+            # to trigger watchdog... doesn't work though...
+            print("sleeping 100")
+            time.sleep(100)
 
-
-
-
-    # def usb_serial_parser(string):
-    #     mcu.log.info(f'USBserial: {string}')
-
-    # # def parse_feeds():
-    # #     if mcu.aio is not None:
-    # #         for feed_id in mcu.aio.updated_feeds.keys():
-    # #             payload = mcu.aio.updated_feeds.pop(feed_id)
-
-    # #             if feed_id == 'led-color':
-    # #                 r = int(payload[1:3], 16)
-    # #                 g = int(payload[3:5], 16)
-    # #                 b = int(payload[5:], 16)
-    # #                 if mcu.display:
-    # #                     mcu.display.set_fast_backlight_rgb(r, g, b)
-    # #                 mcu.pixel[0] = int(payload[1:], 16)
-    # #                 # mcu.pixel[0] = (r<<16) + (g<<8) + b
-
-    # #             if feed_id == 'ota':
-    # #                 mcu.ota_reboot()
-
-    # timer_A=0
-
-    # while True:
-    #     mcu.service(serial_parser=usb_serial_parser)
-
-    #     if time.monotonic() - timer_A > 1:
-    #         timer_A = time.monotonic()
-    #         mcu.led.value = not mcu.led.value #heartbeat LED
-    #         timestamp = mcu.get_timestamp()
-    #         # mcu.data['debug'] = timestamp
-    #         mcu.display_text(timestamp)
-    #         # mcu.aio_sync_http(receive_interval=10, publish_interval=10)
-    #         # parse_feeds()
 
 
 if __name__ == "__main__":

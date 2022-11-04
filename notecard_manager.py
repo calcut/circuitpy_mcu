@@ -48,7 +48,7 @@ class Notecard_manager():
                     # check details of connection status
                     rsp = hub.syncStatus(self.ncard)
                     # if not debug:
-                    self.log.info(rsp)
+                    self.log.info(f"{rsp}")
 
                 if time.monotonic() - stamp > 100:
                     stamp = time.monotonic()
@@ -76,7 +76,7 @@ class Notecard_manager():
             self.log.info(f'setting default environment: {key} = {val}')
         hub.sync(self.ncard)
 
-    def update_environment(self):
+    def receive_environment(self):
 
         modified = env.modified(self.ncard)
         if modified["time"] > self.env_stamp:
@@ -87,7 +87,7 @@ class Notecard_manager():
             rsp = env.get(self.ncard)
             self.environment = rsp["body"]
             self.env_stamp = modified["time"]
-            self.log.info(f"environment = {self.environment}")
+            self.log.debug(f"environment = {self.environment}")
 
     def receive_note(self, notefile="data.qi"):
 
@@ -100,13 +100,21 @@ class Notecard_manager():
                     self.inbound_notes[notefile] = rsp["body"]
                     self.log.info(f'{notefile} = {rsp["body"]}')
 
-    def send_note(self, datadict):
-        note.add(self.ncard, file="data.qo", body=datadict)
+    def send_note(self, datadict, sync=True):
+        note.add(self.ncard, file="data.qo", body=datadict, sync=sync)
         self.log.info(f'sending note {datadict}')
 
     def reconfigure(self):
 
-        hub.set(self.ncard, secrets['productUID'], mode=self.mode, sync=True)
+        req = {"req": "card.restore"}
+        req["delete"] = False
+        req["connected"] = False
+        self.ncard.Transaction(req)
+
+        hub.set(self.ncard, product=secrets['productUID'], mode=self.mode, sync=True, outbound=2, inbound=2)
+
+        # doesn't seem to work yet... 
+        card.attn(self.ncard, mode="watchdog", seconds=60)
 
         req = {"req": "card.wifi"}
         req["ssid"] = secrets['ssid']
@@ -116,13 +124,13 @@ class Notecard_manager():
         req = {"req": "card.restart"}
         self.ncard.Transaction(req)
 
-    def service(self):
+    # def service(self):
 
-        # if self.mode != "continuous":
-        hub.sync(self.ncard) #continuous mode will still do it periodically
-            # self.log.info('Force sync')
+    #     # if self.mode != "continuous":
+    #     # hub.sync(self.ncard) #continuous mode will still do it periodically
+    #         # self.log.info('Force sync')
 
-        self.receive_note()
-        self.update_environment()
+    #     self.receive_note()
+    #     self.receive_environment()
             
 
