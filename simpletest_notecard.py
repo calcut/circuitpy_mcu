@@ -1,5 +1,6 @@
 from circuitpy_mcu.ota_bootloader import reset, enable_watchdog
-from circuitpy_mcu.mcu_notecard import Mcu
+from circuitpy_mcu.mcu import Mcu
+from circuitpy_mcu.notecard_manager import Notecard_manager
 
 import busio
 import board
@@ -38,102 +39,23 @@ def main():
     # External I2C display
     mcu.attach_display_sparkfun_20x4()
 
-    # # Networking Setup
-    # mcu.wifi.connect()
-    # if mcu.aio_setup(aio_group=f'{AIO_GROUP}-{mcu.id}'):
-    #     mcu.aio.connect()
-    #     mcu.aio.subscribe('led-color')
+    ncm = Notecard_manager(loghandler=mcu.loghandler, i2c=mcu.i2c)
 
-    # Notecard Setup
-    # i2c = busio.I2C(board.SCL, board.SDA)
-    ncard = notecard.OpenI2C(mcu.i2c, 0, 0, debug=True)
-    productUID = "com.gmail.calum.cuthill:test1"
-
-
-    def notecard_reconfigure():
-        hub.set(ncard, productUID, mode='continuous', sync=True)
-
-        req = {"req": "card.wifi"}
-        req["ssid"] = secrets['ssid']
-        req["password"] = secrets['password']
-        rsp = ncard.Transaction(req)
-
-        req = {"req": "card.restart"}
-        ncard.Transaction(req)
-
-    stamp = time.monotonic()
-    while True:
-        try:
-            status = card.status(ncard)
-            if "connected" in status:
-                print(f'{status["connected"]=}')
-                break
-
-            else:
-                # check details of connection status
-                hub.syncStatus(ncard)
-
-            if time.monotonic() - stamp > 60:
-                stamp = time.monotonic()
-                print('no connection, reconfiguring notecard')
-                notecard_reconfigure()
-
-            
-        except OSError as e:
-            # notecard may be rebooting
-            print(e)
-
-        time.sleep(1)
-        
-    print("Notecard connected!")
-
-    # sync time
-    rsp = card.time(ncard)
-    unixtime = rsp['time']
-    print(f'{unixtime=}')
-    mcu.rtc.datetime = time.localtime(unixtime)
-
+    # environment variables, with a default value (to be overridden by notehub)
     env_vars = {
         'pump1-speed' : "0.54",
         'pump2-speed' : "0.55",
         'pump3-speed' : "0.56",
     }
 
-    inbound_notes = {
-        # 'sensors.qo' : None,
-        'data.qi'    : None,
-    }
-
-    def set_default_envs(var_dict):
-        for key, val in var_dict.items():
-            env.default(ncard, key, val)
-        hub.sync(ncard)
-
-    def update_envs():
-        print("\n\n Receiving Environment Variables")
-        
-        for k in env_vars.keys():
-            rsp = env.get(ncard, k)
-            env_vars[k] = rsp["text"]
-        print(env_vars)
-        print("\n\n")
-
-
-    def update_notes():
-        print("\n\n Receiving Notes")
-        for n in inbound_notes.keys():
-            rsp = note.get(ncard, n, delete=True)
-            if "body" in rsp:
-                inbound_notes[n] = rsp["body"]
-        print(inbound_notes)
-        print("\n\n")
+    ncm.env_vars = env_vars
 
     # set some defaults
-    set_default_envs(env_vars)
+    ncm.set_default_envs(env_vars)
 
     timer_A=0
     timer_B=0
-    env_stamp = 0
+    timer_C=0
 
     while True:
         mcu.service()
@@ -145,26 +67,22 @@ def main():
 
             temp = 0.123
             humidity = 0.456
-            note.add(ncard, "sensors.qo", { "temp": temp, "time": timestamp}, sync=True)
-            # mcu.aio_sync(mcu.data, publish_interval=10)
-            # mcu.aio_sync_http(receive_interval=10, publish_interval=10)
-            # parse_feeds()
-            # hub.sync(ncard)
-            notes_updated = file.changes(ncard)
-            if "total" in notes_updated:
-                update_notes()
+            mcu.data['temp'] = temp
+            mcu.data['humidity'] = humidity
+            mcu.data['ts'] = timestamp
 
-            env_updated = env.modified(ncard)
-            if env_updated["time"] > env_stamp:
-                update_envs()
-                env_stamp = env_updated["time"]
 
-        if time.monotonic() - timer_B > 5:
+        if time.monotonic() - timer_B > 20:
             timer_B = time.monotonic()
             timestamp = mcu.get_timestamp()
-            note.add(ncard, "sensors.qo", { "temp": temp, "time": timestamp}, sync=True)
+            ncm.send_note(mcu.data)
+            # note.add(ncard, "sensors.qo", { "temp": temp, "time": timestamp}, sync=False)
 
-
+        if time.monotonic() - timer_C > 30:
+            timer_C = time.monotonic()
+            timestamp = mcu.get_timestamp()
+            mcu.log.info(f"servicing notecard now {timestamp}")
+            ncm.service()
 
 
 
