@@ -34,6 +34,7 @@ class Notecard_manager():
         self.inbound_notes = {'data.qi'  : None}
 
         self.wait_for_conection()
+        self.sync_time()
         
     def wait_for_conection(self):
         stamp = time.monotonic()
@@ -86,6 +87,7 @@ class Notecard_manager():
             rsp = env.get(self.ncard)
             self.environment = rsp["body"]
             self.env_stamp = modified["time"]
+            self.log.info(f"environment = {self.environment}")
 
     def receive_note(self, notefile="data.qi"):
 
