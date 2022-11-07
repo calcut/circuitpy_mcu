@@ -10,7 +10,7 @@ from secrets import secrets
 
 
 class Notecard_manager():
-    def __init__(self, loghandler=None, i2c=None, debug=False, loglevel=logging.INFO):
+    def __init__(self, loghandler=None, i2c=None, debug=False, loglevel=logging.INFO, watchdog=False):
         
         # Set up logging
         self.log = logging.getLogger('notecard')
@@ -35,6 +35,15 @@ class Notecard_manager():
 
         self.wait_for_conection()
         self.sync_time()
+
+        if watchdog:
+            # start a watchdog timer
+            # Will pull ATTN pin low for 5s if no activity detected for "seconds"
+            # seconds must be >=60
+            # ATTN should be connected to e.g. Feather_en using switch on notecarrier.
+            # Currently not working with notecard FW 3.x.x
+            # https://discuss.blues.io/t/watchdog-not-triggering/1067/5
+            card.attn(self.ncard, mode="watchdog", seconds=watchdog)
         
     def wait_for_conection(self):
         stamp = time.monotonic()
@@ -106,15 +115,12 @@ class Notecard_manager():
 
     def reconfigure(self):
 
-        req = {"req": "card.restore"}
-        req["delete"] = False
-        req["connected"] = False
-        self.ncard.Transaction(req)
+        # req = {"req": "card.restore"}
+        # req["delete"] = False
+        # req["connected"] = False
+        # self.ncard.Transaction(req)
 
-        hub.set(self.ncard, product=secrets['productUID'], mode=self.mode, sync=True, outbound=2, inbound=2)
-
-        # doesn't seem to work yet... 
-        card.attn(self.ncard, mode="watchdog", seconds=60)
+        hub.set(self.ncard, product=secrets['productUID'], mode=self.mode, sync=True, outbound=2, inbound=2)        
 
         req = {"req": "card.wifi"}
         req["ssid"] = secrets['ssid']
