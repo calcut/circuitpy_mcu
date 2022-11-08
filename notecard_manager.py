@@ -33,6 +33,8 @@ class Notecard_manager():
 
         self.inbound_notes = {'data.qi'  : None}
 
+        self.timestamped_note = {}
+
         self.wait_for_conection()
         self.sync_time()
 
@@ -108,6 +110,18 @@ class Notecard_manager():
                 if "body" in rsp:
                     self.inbound_notes[notefile] = rsp["body"]
                     self.log.info(f'{notefile} = {rsp["body"]}')
+
+    def send_timestamped_note(self, sync=True):
+        rsp = note.add(self.ncard, file="data.qo", body=self.timestamped_note, sync=sync)
+        if "err" in rsp:
+            self.log.warning(f'error sending note {self.timestamped_note}, {rsp["err"]=}')
+        else:
+            self.log.info(f'sent note {self.timestamped_note}')
+            self.timestamped_note = {}
+
+    def add_to_timestamped_note(self, datadict):
+        ts = time.mktime(self.rtc.datetime)
+        self.timestamped_note[ts] = datadict.copy()
 
     def send_note(self, datadict, sync=True):
         note.add(self.ncard, file="data.qo", body=datadict, sync=sync)

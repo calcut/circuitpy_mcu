@@ -1,6 +1,7 @@
 from circuitpy_mcu.ota_bootloader import reset, enable_watchdog
 from circuitpy_mcu.mcu import Mcu
 from circuitpy_mcu.notecard_manager import Notecard_manager
+import random
 
 import busio
 import board
@@ -99,21 +100,17 @@ def main():
             timestamp = mcu.get_timestamp()
             mcu.display_text(timestamp)
 
-            mcu.data['temp'] = 0.123
-            mcu.data['humidity'] = 0.456
-            mcu.data['ts'] = timestamp
+            mcu.data['temp'] = round(random.uniform(15, 30), 4)
+            mcu.data['humidity'] = round(random.uniform(45, 70), 4)
 
 
-        if time.monotonic() - timer_B > 30:
+
+        if time.monotonic() - timer_B > 10:
             timer_B = time.monotonic()
-            timestamp = mcu.get_timestamp()
-            ncm.send_note(mcu.data, sync=True)
-
-        if time.monotonic() - timer_C > 10:
-            timer_C = time.monotonic()
             # timestamp = mcu.get_timestamp()
             mcu.log.info(f"servicing notecard now {timestamp}")
-            # ncm.service()
+
+            ncm.add_to_timestamped_note(mcu.data)
 
             ncm.receive_note()
             parse_inbound_note()
@@ -121,10 +118,11 @@ def main():
             ncm.receive_environment()
             parse_environment()
 
-            # to trigger watchdog... doesn't work though...
-            print("sleeping 100")
-            time.sleep(100)
-
+        if time.monotonic() - timer_C > 30:
+            timer_C = time.monotonic()
+            timestamp = mcu.get_timestamp()
+            # ncm.send_note(mcu.data, sync=True)
+            ncm.send_timestamped_note(sync=True)
 
 
 if __name__ == "__main__":
