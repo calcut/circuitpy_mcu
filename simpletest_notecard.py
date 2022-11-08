@@ -15,6 +15,14 @@ import adafruit_logging as logging
 from secrets import secrets
 
 
+# for streaming to the Initial State Dashboard, I used this JSONata filter on notehub
+# This gets the json in the correct format for:
+# https://initialstateeventsapi.docs.apiary.io/#reference/event-data/events-json/send-events
+# (
+#     $f1 := function($k, $v, $e) {$merge([{"key" : $k},{"value" : $v},{"epoch" : $e}])};
+#     ($each(body, function($v, $k) {$f1($k, $v, when)}))
+# )
+
 __version__ = "v3.0.0_notecard"
 __filename__ = "simpletest.py"
 __repo__ = "https://github.com/calcut/circuitpy-mcu"
