@@ -105,7 +105,7 @@ def main():
 
 
 
-        if time.monotonic() - timer_B > 10:
+        if time.monotonic() - timer_B > 60:
             timer_B = time.monotonic()
             # timestamp = mcu.get_timestamp()
             mcu.log.info(f"servicing notecard now {timestamp}")
@@ -118,7 +118,7 @@ def main():
             ncm.receive_environment()
             parse_environment()
 
-        if time.monotonic() - timer_C > 30:
+        if time.monotonic() - timer_C > 15*60:
             timer_C = time.monotonic()
             timestamp = mcu.get_timestamp()
             # ncm.send_note(mcu.data, sync=True)

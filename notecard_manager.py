@@ -101,15 +101,18 @@ class Notecard_manager():
             self.log.debug(f"environment = {self.environment}")
 
     def receive_note(self, notefile="data.qi"):
+        try:
+            changes = file.changes(self.ncard)
+            if notefile in changes['info']:
+                if "total" in changes['info'][notefile]:
+                    self.log.info(f"Receiving {notefile}")
+                    rsp = note.get(self.ncard, file=notefile, delete=True)
+                    if "body" in rsp:
+                        self.inbound_notes[notefile] = rsp["body"]
+                        self.log.info(f'{notefile} = {rsp["body"]}')
+        except Exception as e:
+            print(e)
 
-        changes = file.changes(self.ncard)
-        if notefile in changes['info']:
-            if "total" in changes['info'][notefile]:
-                self.log.info(f"Receiving {notefile}")
-                rsp = note.get(self.ncard, file=notefile, delete=True)
-                if "body" in rsp:
-                    self.inbound_notes[notefile] = rsp["body"]
-                    self.log.info(f'{notefile} = {rsp["body"]}')
 
     def send_timestamped_note(self, sync=True):
         rsp = note.add(self.ncard, file="data.qo", body=self.timestamped_note, sync=sync)
