@@ -1,5 +1,4 @@
 import json
-import adafruit_logging as logging
 
 try:
     from secrets import secrets
@@ -8,12 +7,14 @@ except ImportError:
     raise
 
 class Initial_state_streamer():
-    def __init__(self, requests):
+    def __init__(self, requests, bucket_key=None, access_key=None):
         
         self.requests = requests
 
-        bucket_key = secrets["bucket_key"]
-        access_key = secrets ["access_key"]
+        if bucket_key is None:
+            bucket_key = secrets["bucket_key"]
+        if access_key is None:
+            access_key = secrets ["access_key"]
 
         self.url = 'https://groker.init.st/api/events'
         self.headers = {
@@ -34,5 +35,5 @@ class Initial_state_streamer():
             output.append(datapoint)
 
         r = self.requests.post(self.url, data=json.dumps(output), headers=self.headers)
-        print(f'{r.status_code=}')  
-        print(f'{r.text=}')
+        # print(f'{r.status_code=}')  
+        # print(f'{r.text=}')
