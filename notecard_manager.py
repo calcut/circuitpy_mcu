@@ -17,6 +17,7 @@ class Notecard_manager():
         self.log.setLevel(loglevel)
         if loghandler:
             self.log.addHandler(loghandler)
+            loghandler.aux_log_function = self.log_function
 
         if i2c:
             self.ncard = notecard.OpenI2C(i2c, 0, 0, debug=debug)
@@ -34,6 +35,7 @@ class Notecard_manager():
         self.inbound_notes = {'data.qi'  : None}
 
         self.timestamped_note = {}
+        self.timestamped_log = {}
 
         self.wait_for_conection()
         self.sync_time()
@@ -59,7 +61,7 @@ class Notecard_manager():
                     # check details of connection status
                     rsp = hub.syncStatus(self.ncard)
                     # if not debug:
-                    self.log.info(f"{rsp}")
+                    self.log.debug(f"{rsp}")
 
                 if time.monotonic() - stamp > 100:
                     stamp = time.monotonic()
@@ -73,13 +75,13 @@ class Notecard_manager():
 
             time.sleep(1)
 
-        self.log.info("connected")
+        self.log.debug("connected")
 
     def sync_time(self):
         rsp = card.time(self.ncard)
         unixtime = rsp['time']
         self.rtc.datetime = time.localtime(unixtime)
-        self.log.info(f'RTC syncronised')
+        self.log.debug(f'RTC syncronised')
 
     def set_default_envs(self, var_dict):
         for key, val in var_dict.items():
@@ -92,7 +94,7 @@ class Notecard_manager():
         modified = env.modified(self.ncard)
         if modified["time"] > self.env_stamp:
         
-            self.log.info("Updating Environment Variables")
+            self.log.debug("Updating Environment Variables")
             self.environment = {}
             
             rsp = env.get(self.ncard)
@@ -101,34 +103,65 @@ class Notecard_manager():
             self.log.debug(f"environment = {self.environment}")
 
     def receive_note(self, notefile="data.qi"):
-        try:
-            changes = file.changes(self.ncard)
-            if notefile in changes['info']:
-                if "total" in changes['info'][notefile]:
-                    self.log.info(f"Receiving {notefile}")
-                    rsp = note.get(self.ncard, file=notefile, delete=True)
-                    if "body" in rsp:
-                        self.inbound_notes[notefile] = rsp["body"]
-                        self.log.info(f'{notefile} = {rsp["body"]}')
-        except Exception as e:
-            print(e)
+        # try:
+        changes = file.changes(self.ncard)
+        if notefile in changes['info']:
+            if "total" in changes['info'][notefile]:
+                self.log.debug(f"Receiving {notefile}")
+                rsp = note.get(self.ncard, file=notefile, delete=True)
+                if "body" in rsp:
+                    self.inbound_notes[notefile] = rsp["body"]
+                    self.log.debug(f'{notefile} = {rsp["body"]}')
+        # except Exception as e:
+        #     print(e)
 
 
     def send_timestamped_note(self, sync=True):
-        rsp = note.add(self.ncard, file="data.qo", body=self.timestamped_note, sync=sync)
-        if "err" in rsp:
-            self.log.warning(f'error sending note {self.timestamped_note}, {rsp["err"]=}')
-        else:
-            self.log.info(f'sent note {self.timestamped_note}')
-            self.timestamped_note = {}
+        if len(self.timestamped_note) > 0:
+            rsp = note.add(self.ncard, file="data.qo", body=self.timestamped_note, sync=sync)
+            if "err" in rsp:
+                self.log.warning(f'error sending note {self.timestamped_note}, {rsp["err"]=}')
+            else:
+                self.log.debug(f'sent note {self.timestamped_note}')
+                self.timestamped_note = {}
+
+    def send_timestamped_log(self, sync=True):
+        if len(self.timestamped_log) > 0:
+            rsp = note.add(self.ncard, file="log.qo", body=self.timestamped_log, sync=sync)
+            if "err" in rsp:
+                self.log.warning(f'error sending log {self.timestamped_log}, {rsp["err"]=}')
+            else:
+                self.log.debug(f'sent log {self.timestamped_log}')
+                self.timestamped_log = {}
 
     def add_to_timestamped_note(self, datadict):
         ts = time.mktime(self.rtc.datetime)
         self.timestamped_note[ts] = datadict.copy()
 
-    def send_note(self, datadict, sync=True):
-        note.add(self.ncard, file="data.qo", body=datadict, sync=sync)
-        self.log.info(f'sending note {datadict}')
+    def add_to_timestamped_log(self, text, ts):
+        if ts in self.timestamped_log:
+            self.timestamped_log[ts].append(text)
+        else:
+            self.timestamped_log[ts] = [text]
+
+    def send_note(self, datadict, file="data.qo", sync=True):
+        note.add(self.ncard, file=file, body=datadict, sync=sync)
+        self.log.debug(f'sending note {datadict}')
+
+    def log_function(self, record):
+        # Intended to be used with the mcu library's loghandler
+        # connect at the top level with e.g.
+        # mcu.loghandler.aux_log_function = ncm.log_function
+
+        t = self.rtc.datetime
+        ts = f'{t.tm_year}-{t.tm_mon:02}-{t.tm_mday:02} {t.tm_hour:02}:{t.tm_min:02}:{t.tm_sec:02}'
+        text = f'{record.name} {record.levelname} {record.msg}'
+
+        if record.levelno >= logging.WARNING:
+            self.send_note({ts: text}, file="log.qo")
+
+        if record.levelno >= logging.INFO:
+            self.add_to_timestamped_log(text, ts)
 
     def reconfigure(self):
 
@@ -146,14 +179,4 @@ class Notecard_manager():
 
         req = {"req": "card.restart"}
         self.ncard.Transaction(req)
-
-    # def service(self):
-
-    #     # if self.mode != "continuous":
-    #     # hub.sync(self.ncard) #continuous mode will still do it periodically
-    #         # self.log.info('Force sync')
-
-    #     self.receive_note()
-    #     self.receive_environment()
-            
 

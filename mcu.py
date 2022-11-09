@@ -24,13 +24,20 @@ import adafruit_sdcard
 import storage
 
 # Networking
-from circuitpy_mcu.aio import Aio_http, Aio_mqtt
-from circuitpy_mcu.wifi_manager import Wifi_manager
+try:
+    from circuitpy_mcu.aio import Aio_http, Aio_mqtt
+except ImportError as e:
+    print(e)
+    
+try:
+    from circuitpy_mcu.wifi_manager import Wifi_manager
+except ImportError as e:
+    print(e)
 
 try:
     # RTC on adalogger board
     import adafruit_pcf8523
-except:
+except ImportError:
     pass
 
 try:
@@ -447,6 +454,7 @@ class McuLogHandler(logging.Handler):
         self.aio = None # This can be passed later after aio connection is established
         self.device = mcu_device
         self.boot_time = time.monotonic()
+        self.aux_log_function = None
 
     def emit(self, record):
         """Generate the message and write it to the AIO Feed.
@@ -494,6 +502,10 @@ class McuLogHandler(logging.Handler):
                 self.device.aio.publish('log', text)
             except Exception as e:
                 print(f'Error publishing to AIO log: {e}')
+
+        if self.aux_log_function is not None:
+            # to call an auxilliary log output function (e.g. Send via Notecard)
+            self.aux_log_function(record)
 
         # Print to log.txt with timestamp 
         # only works if flash is set writable at boot time
