@@ -12,7 +12,8 @@ __filename__ = "simpletest_notecard.py"
 __repo__ = "https://github.com/calcut/circuitpy-mcu"
 
 
-MINUTES = 60 #60seconds, can be reduced for debug
+# MINUTES = 1 # reduced for debug
+MINUTES = 60 #60seconds
 LOGLEVEL = logging.DEBUG
 # LOGLEVEL = logging.INFO
 
@@ -114,7 +115,7 @@ def main():
 
 if __name__ == "__main__":
     try:
-        enable_watchdog(timeout=120)
+        enable_watchdog(timeout=240)
         main()
     except KeyboardInterrupt:
         print('Code Stopped by Keyboard Interrupt')

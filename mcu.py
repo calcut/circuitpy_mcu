@@ -358,6 +358,7 @@ class Mcu():
 
     def display_text(self, text):
         if self.display:
+
             if isinstance(self.display, LCD_16x2):
                 self.display.clear()
                 self.display.write(text)
@@ -366,6 +367,11 @@ class Mcu():
                 self.display.write(text)
             else:
                 self.log.error("Unknown Display")
+
+        # Seeing I2C errors when used with notecard, this may prevent it.
+        # Unsure why!
+            self.i2c.try_lock()
+            self.i2c.unlock()
 
     def writable_check(self):
         # For testing if CIRCUITPY drive is writable by circuitpython
