@@ -3,34 +3,18 @@ from circuitpy_mcu.mcu import Mcu
 from circuitpy_mcu.notecard_manager import Notecard_manager
 import random
 
-import busio
-import board
-
-import notecard
-from notecard import hub, card, file, note, env
-
 import time
-import json
-
 import adafruit_logging as logging
-from secrets import secrets
 
-
-# for streaming to the Initial State Dashboard, I used this JSONata filter on notehub
-# This gets the json in the correct format for:
-# https://initialstateeventsapi.docs.apiary.io/#reference/event-data/events-json/send-events
-# (
-#     $f1 := function($k, $v, $e) {$merge([{"key" : $k},{"value" : $v},{"epoch" : $e}])};
-#     ($each(body, function($v, $k) {$f1($k, $v, when)}))
-# )
 
 __version__ = "v3.0.0_notecard"
-__filename__ = "simpletest.py"
+__filename__ = "simpletest_notecard.py"
 __repo__ = "https://github.com/calcut/circuitpy-mcu"
 
-AIO_GROUP = 'dev'
-# LOGLEVEL = logging.DEBUG
-LOGLEVEL = logging.INFO
+
+MINUTES = 60 #60seconds, can be reduced for debug
+LOGLEVEL = logging.DEBUG
+# LOGLEVEL = logging.INFO
 
 def main():
 
@@ -42,27 +26,21 @@ def main():
         # '0x77' : 'Temp/Humidity/Pressure BME280' # Built into some ESP32S2 feathers 
     }
 
-    mcu = Mcu(loglevel=LOGLEVEL)
+    mcu = Mcu(loglevel=LOGLEVEL, i2c_freq=100000)
+    ncm = Notecard_manager(loghandler=mcu.loghandler, i2c=mcu.i2c, watchdog=60)
+
     mcu.log.info(f'STARTING {__filename__} {__version__}')
 
     # External I2C display
     mcu.attach_display_sparkfun_20x4()
 
-    ncm = Notecard_manager(loghandler=mcu.loghandler, i2c=mcu.i2c, watchdog=60)
-
-    # environment variables, with a default value (to be overridden by notehub)
+    # set defaults for environment variables, (to be overridden by notehub)
     environment_default = {
         'pump1-speed' : "0.54",
         'pump2-speed' : "0.55",
         'pump3-speed' : "0.56",
-    }
-
-    # set some defaults
+        }
     ncm.set_default_envs(environment_default)
-
-    timer_A=0
-    timer_B=0
-    timer_C=0
 
     def parse_environment():
 
@@ -89,7 +67,9 @@ def main():
                 if key == 'test':
                     mcu.log.info(f"Test success! val = {val}")
 
-
+    timer_A=0
+    timer_B=0
+    timer_C=0
 
     while True:
         mcu.service()
@@ -100,29 +80,36 @@ def main():
             timestamp = mcu.get_timestamp()
             mcu.display_text(timestamp)
 
+            # capture data, can be displayed immediately
             mcu.data['temp'] = round(random.uniform(15, 30), 4)
             mcu.data['humidity'] = round(random.uniform(45, 70), 4)
 
 
-
-        if time.monotonic() - timer_B > 60:
+        if time.monotonic() - timer_B > (1 * MINUTES):
             timer_B = time.monotonic()
-            # timestamp = mcu.get_timestamp()
-            mcu.log.info(f"servicing notecard now {timestamp}")
+            mcu.log.debug(f"servicing notecard now {timestamp}")
 
+            # Accumulate data with timestamps in a note to send infrequently
+            # Intended to minimise Notehub consumption credits
             ncm.add_to_timestamped_note(mcu.data)
 
+            # check for any new inbound notes to parse
             ncm.receive_note()
             parse_inbound_note()
 
+            # check for any environment variable updates to parse
             ncm.receive_environment()
             parse_environment()
 
-        if time.monotonic() - timer_C > 15*60:
+        if time.monotonic() - timer_C > (15 * MINUTES):
             timer_C = time.monotonic()
-            timestamp = mcu.get_timestamp()
-            # ncm.send_note(mcu.data, sync=True)
+
+            # Send note infrequently (e.g. 15 mins) to minimise consumption credit usage
             ncm.send_timestamped_note(sync=True)
+            ncm.send_timestamped_log(sync=True)
+
+            # Can also send data without timesamps, current timestamp will be used
+            # ncm.send_note(mcu.data, sync=True)
 
 
 if __name__ == "__main__":
