@@ -270,9 +270,17 @@ class Mcu():
         except ValueError as e:
             self.log.warning(f'No RTC found: {e}')
 
-    def attach_display_sparkfun_20x4(self):
+    def attach_display_sparkfun_20x4(self, i2c2=False):
+
         try:
-            display = LCD_20x4(self.i2c)
+            if i2c2:
+                self.i2c2 = busio.I2C(sda=board.D6, scl=board.D5, frequency=100000)
+                # Display doesn't play nice on i2c bus with lots of devices
+                # So this is an option to have it on separate bus
+                display = LCD_20x4(self.i2c2)
+            else:
+                display = LCD_20x4(self.i2c)
+
             self.attach_display(display)
         except ValueError as e:
             self.log.warning(f'No Display found: {e}')
