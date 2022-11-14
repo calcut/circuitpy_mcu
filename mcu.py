@@ -85,6 +85,8 @@ class Mcu():
         self.i2c_power_on()
         self.i2c = busio.I2C(board.SCL, board.SDA, frequency=i2c_freq)
 
+        self.i2c2 = None
+
         if uart_baud:
             self.uart = busio.UART(board.TX, board.RX, baudrate=uart_baud)
         else:
@@ -215,15 +217,21 @@ class Mcu():
         self.i2c_power.switch_to_output(value=True)
         time.sleep(1)
 
-    def i2c_identify(self, i2c_lookup=None):
-        while not self.i2c.try_lock():  pass
+    def enable_i2c2(self, sda=board.D6, scl=board.D5, frequency=50000):
+        self.i2c2 = busio.I2C(sda=sda, scl=scl, frequency=frequency)
+
+    def i2c_identify(self, i2c_lookup=None, i2c=None):
+        if i2c is None:
+            i2c=self.i2c
+
+        while not i2c.try_lock():  pass
 
         if i2c_lookup:
             self.log.info(f'\nChecking if expected I2C devices are present:')
             
             lookup_result = i2c_lookup.copy()
             devs_present = []
-            for addr in self.i2c.scan():
+            for addr in i2c.scan():
                 devs_present.append(f'0x{addr:0{2}X}')
 
             for addr_hex in i2c_lookup:
@@ -239,12 +247,12 @@ class Mcu():
                 self.log.info(f'Unknown devices found: {devs_present}')
 
         else:
-            for device_address in self.i2c.scan():
+            for device_address in i2c.scan():
                 addr_hex = f'0x{device_address:0{2}X}'
                 self.log.info(f'{addr_hex}')
             lookup_result = None
 
-        self.i2c.unlock()
+        i2c.unlock()
         return lookup_result
 
 
@@ -270,17 +278,9 @@ class Mcu():
         except ValueError as e:
             self.log.warning(f'No RTC found: {e}')
 
-    def attach_display_sparkfun_20x4(self, i2c2=False):
-
+    def attach_display_sparkfun_20x4(self):
         try:
-            if i2c2:
-                self.i2c2 = busio.I2C(sda=board.D6, scl=board.D5, frequency=100000)
-                # Display doesn't play nice on i2c bus with lots of devices
-                # So this is an option to have it on separate bus
-                display = LCD_20x4(self.i2c2)
-            else:
-                display = LCD_20x4(self.i2c)
-
+            display = LCD_20x4(self.i2c)
             self.attach_display(display)
         except ValueError as e:
             self.log.warning(f'No Display found: {e}')
