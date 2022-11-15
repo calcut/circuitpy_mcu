@@ -83,13 +83,22 @@ class Notecard_manager():
         self.rtc.datetime = time.localtime(unixtime)
         self.log.debug(f'RTC syncronised')
 
-    def set_default_envs(self, var_dict):
-        for key, val in var_dict.items():
-            env.default(self.ncard, key, val)
+    def set_default_envs(self, typed_env, clear=True):
+        for key, val in typed_env.items():
+            env.default(self.ncard, key, str(val))
             self.log.info(f'setting default environment: {key} = {val}')
-        hub.sync(self.ncard)
 
-    def receive_environment(self):
+        if clear:
+            rsp = env.get(self.ncard)
+            for key in rsp['body'].keys():
+                if key not in typed_env.keys() and key[0] != "_":
+                    env.default(self.ncard, key)
+                    self.log.warning(f'clearing default environment variable: {key}')
+
+        hub.sync(self.ncard)
+        self.receive_environment(typed_env)
+
+    def receive_environment(self, typed_env=None):
 
         modified = env.modified(self.ncard)
         if modified["time"] > self.env_stamp:
@@ -101,6 +110,29 @@ class Notecard_manager():
             self.environment = rsp["body"]
             self.env_stamp = modified["time"]
             self.log.debug(f"environment = {self.environment}")
+
+            if typed_env is not None:
+                for key, val in self.environment.items():
+                    if key in typed_env.keys():
+                        try:
+                            dtype = type(typed_env[key])
+                            if dtype == list:
+                                if (val[0] == "[") and (val[-1] == "]"):
+                                    typed_val = eval(val)
+                                else:
+                                    print(f"Couldn't parse {val}, expected a list")
+                            else:
+                                typed_val = dtype(val)
+
+                            typed_env[key] = typed_val
+                        except Exception as e:
+                                self.log.error(f"Could not parse {key} = {val}, {e}")
+                        self.log.debug(f"environment update: {key} = {typed_val}")
+            return True
+        else:
+            # No update
+            return False
+
 
     def receive_note(self, notefile="data.qi"):
         # try:
