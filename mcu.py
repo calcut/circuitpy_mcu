@@ -461,6 +461,40 @@ class Mcu():
             self.log.warning(f'No handler for this exception in mcu.handle_exception()')
             # raise
 
+    def get_next_alarm(self, alarm_list):
+        """
+        Returns number of seconds until the next alarm in a list,
+        e.g. alarm_list = ["10:00", "11:00", "14:53"]
+        Assumes alarms repeat daily
+        """
+
+        now = time.localtime()
+        year = now.tm_year
+        month = now.tm_mon
+        day = now.tm_mday
+
+        seconds_list = []
+
+        for t in alarm_list:
+            sp = t.split(":")
+
+            hour = int(sp[0])
+            mins = int(sp[1])
+
+            list_time = time.struct_time([year,month,day,hour,mins, 0,0,0,0])
+            posix_list_time = time.mktime(list_time)
+            seconds_to_alarm = posix_list_time - time.time()
+
+            # roll over to the next day
+            if seconds_to_alarm <=0:
+                seconds_to_alarm += 60*60*24
+
+            seconds_list.append(seconds_to_alarm)
+
+        next_alarm_countdown = min(seconds_list)
+
+        return next_alarm_countdown
+
 
 class McuLogHandler(logging.Handler):
 
