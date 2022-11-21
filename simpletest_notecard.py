@@ -36,18 +36,16 @@ def main():
     mcu.attach_display_sparkfun_20x4()
 
     # set defaults for environment variables, (to be overridden by notehub)
-    environment_default = {
+    env = {
         'pump1-speed' : "0.54",
         'pump2-speed' : "0.55",
-        'pump3-speed' : "0.56",
         }
-    ncm.set_default_envs(environment_default)
+
+    # This will also update env with any overrides from notehub
+    ncm.set_default_envs(env)
 
     def parse_environment():
-
-        for key in ncm.environment.keys():
-            val = ncm.environment.pop(key)
-            mcu.log.info(f"environment update: {key} = {val}")
+        for key, val in env.items():
 
             if key == 'pump1-speed':
                 speed = float(val)
@@ -56,6 +54,8 @@ def main():
             if key == 'pump2-speed':
                 speed = float(val)
                 print(f'Adjusting pump 2 speed to {speed}')
+
+    parse_environment()
 
     def parse_inbound_note(notefile="data.qi"):
 
