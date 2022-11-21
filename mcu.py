@@ -372,7 +372,8 @@ class Mcu():
                 self.display.write(text)
             elif isinstance(self.display, LCD_20x4):
                 self.display.clear()
-                self.display.write(text)
+                # Unsure why this fails if longer than ~33 chars?
+                self.display.write(text[:32])
             else:
                 self.log.error("Unknown Display")
 
