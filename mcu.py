@@ -553,7 +553,10 @@ class McuLogHandler(logging.Handler):
 
         if self.aux_log_function is not None:
             # to call an auxilliary log output function (e.g. Send via Notecard)
-            self.aux_log_function(record)
+            try:
+                self.aux_log_function(record)
+            except Exception as e:
+                print(f'Error in aux log function: {e}')
 
         # Print to log.txt with timestamp 
         # only works if flash is set writable at boot time
