@@ -99,8 +99,8 @@ def main():
             parse_inbound_note()
 
             # check for any environment variable updates to parse
-            ncm.receive_environment()
-            parse_environment()
+            if ncm.receive_environment(env):
+                parse_environment()
 
         if time.monotonic() - timer_C > (15 * MINUTES):
             timer_C = time.monotonic()
