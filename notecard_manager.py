@@ -41,7 +41,10 @@ class Notecard_manager():
             self.timestamped_note = {}
             self.timestamped_log = {}
 
-            self.wait_for_conection()
+            self.connected = False
+            self.last_sync = 0
+
+            self.wait_for_time()
             self.sync_time()
 
             if watchdog:
@@ -54,36 +57,65 @@ class Notecard_manager():
                 card.attn(self.ncard, mode="watchdog", seconds=watchdog)
         except Exception as e:
             self.handle_exception(e)
-        
-    def wait_for_conection(self):
+
+    def check_status(self, nosync_timeout=None, nosync_warning=120):
         try:
-            stamp = time.monotonic()
+            cstatus = card.status(self.ncard)
+            if "storage" in cstatus:
+                percentage = cstatus["storage"]
+                if percentage > 50:
+                    self.log.info(f"notecard storage at {percentage}%")
+            if "connected" in cstatus:
+                self.connected = True
+                return
+
+            self.connected = False
+            t_since_sync = 0
+            self.last_sync = 0
+
+            rsp = hub.syncStatus(self.ncard)
+
+            if 'status' in rsp:
+                status = rsp['status']
+                if status != 'completed {sync-end}':
+                    self.display(status)
+                    self.log.debug(str(rsp))
+            if 'completed' in rsp:
+                t_since_sync = rsp['completed']
+            if 'reqested' in rsp:
+                t_since_sync = rsp['requested']
+            if 'time' in rsp:
+                self.last_sync = rsp['time']
+
+            if nosync_warning:
+                if t_since_sync > nosync_warning:
+                    self.log.debug(f"no sync in {t_since_sync}s")
+
+            if nosync_timeout:        
+                if t_since_sync > nosync_timeout:
+                    self.log.critical(f"no sync in {t_since_sync}s, timed out, reconfiguring notecard")
+                    # microcontroller.reset()
+                    self.reconfigure()
+         
+        except Exception as e:
+            self.handle_exception(e)
+
+    def wait_for_time(self):
+        try:
             while True:
-                try:
-                    status = card.status(self.ncard)
-                    if "connected" in status:
-                        break
+                self.check_status(nosync_timeout=100)
+                if self.connected:
+                    self.log.info("connected")
+                    break
 
-                    else:
-                        # check details of connection status
-                        rsp = hub.syncStatus(self.ncard)
-                        # if not debug:
-                        self.log.debug(f"{rsp['status']}")
-                        self.display(f"{rsp['status']}")
+                print(f'{self.last_sync=}')
 
-                    if time.monotonic() - stamp > 100:
-                        stamp = time.monotonic()
-                        self.log.warning('no connection, reconfiguring notecard')
-                        self.reconfigure()
-
-                    
-                except OSError as e:
-                    # notecard may be rebooting
-                    print(e)
+                if self.last_sync > 0:
+                    self.log.info(f'No connection, but time was set at {self.last_sync}')
+                    break
 
                 time.sleep(1)
 
-            self.log.debug("connected")
         except Exception as e:
             self.handle_exception(e)
 
@@ -255,11 +287,11 @@ class Notecard_manager():
         cl = e.__class__
         if cl == OSError:
             self.log.error(traceback.format_exception(None, e, e.__traceback__))
-            self.log.warning("{cl} {e}, likely i2c bus issue, too many pullups?")
+            self.log.warning("{cl} {e}, Notecard restarting, or i2c bus issue, too many pullups?")
+            time.sleep(1)
         else:
             self.log.error(traceback.format_exception(None, e, e.__traceback__))
-            self.log.critical(f"Unhandled Notecard Error, Hard resetting in 10s")
-            time.sleep(10)
-            microcontroller.reset()
+            self.log.critical(f"Unhandled Notecard Error, Raising")
+            raise e
 
 
