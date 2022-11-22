@@ -90,6 +90,13 @@ def main():
             timer_B = time.monotonic()
             mcu.log.debug(f"servicing notecard now {timestamp}")
 
+            # Checks if connected, storage availablity, etc.
+            ncm.check_status()
+            if ncm.connected:
+                mcu.pixel[0] = mcu.pixel.MAGENTA
+            else:
+                mcu.pixel[0] = mcu.pixel.RED
+                
             # Accumulate data with timestamps in a note to send infrequently
             # Intended to minimise Notehub consumption credits
             ncm.add_to_timestamped_note(mcu.data)
