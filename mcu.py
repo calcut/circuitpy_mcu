@@ -24,13 +24,20 @@ import adafruit_sdcard
 import storage
 
 # Networking
-from circuitpy_mcu.aio import Aio_http, Aio_mqtt
-from circuitpy_mcu.wifi_manager import Wifi_manager
+try:
+    from circuitpy_mcu.aio import Aio_http, Aio_mqtt
+except ImportError as e:
+    print(e)
+    
+try:
+    from circuitpy_mcu.wifi_manager import Wifi_manager
+except ImportError as e:
+    print(e)
 
 try:
     # RTC on adalogger board
     import adafruit_pcf8523
-except:
+except ImportError:
     pass
 
 try:
@@ -77,6 +84,8 @@ class Mcu():
         self.i2c_power = digitalio.DigitalInOut(board.I2C_POWER)
         self.i2c_power_on()
         self.i2c = busio.I2C(board.SCL, board.SDA, frequency=i2c_freq)
+
+        self.i2c2 = None
 
         if uart_baud:
             self.uart = busio.UART(board.TX, board.RX, baudrate=uart_baud)
@@ -208,15 +217,21 @@ class Mcu():
         self.i2c_power.switch_to_output(value=True)
         time.sleep(1)
 
-    def i2c_identify(self, i2c_lookup=None):
-        while not self.i2c.try_lock():  pass
+    def enable_i2c2(self, sda=board.D6, scl=board.D5, frequency=50000):
+        self.i2c2 = busio.I2C(sda=sda, scl=scl, frequency=frequency)
+
+    def i2c_identify(self, i2c_lookup=None, i2c=None):
+        if i2c is None:
+            i2c=self.i2c
+
+        while not i2c.try_lock():  pass
 
         if i2c_lookup:
             self.log.info(f'\nChecking if expected I2C devices are present:')
             
             lookup_result = i2c_lookup.copy()
             devs_present = []
-            for addr in self.i2c.scan():
+            for addr in i2c.scan():
                 devs_present.append(f'0x{addr:0{2}X}')
 
             for addr_hex in i2c_lookup:
@@ -232,12 +247,12 @@ class Mcu():
                 self.log.info(f'Unknown devices found: {devs_present}')
 
         else:
-            for device_address in self.i2c.scan():
+            for device_address in i2c.scan():
                 addr_hex = f'0x{device_address:0{2}X}'
                 self.log.info(f'{addr_hex}')
             lookup_result = None
 
-        self.i2c.unlock()
+        i2c.unlock()
         return lookup_result
 
 
@@ -351,14 +366,21 @@ class Mcu():
 
     def display_text(self, text):
         if self.display:
+
             if isinstance(self.display, LCD_16x2):
                 self.display.clear()
                 self.display.write(text)
             elif isinstance(self.display, LCD_20x4):
                 self.display.clear()
-                self.display.write(text)
+                # Unsure why this fails if longer than ~33 chars?
+                self.display.write(text[:32])
             else:
                 self.log.error("Unknown Display")
+
+        # Seeing I2C errors when used with notecard, this may prevent it.
+        # Unsure why!
+            self.i2c.try_lock()
+            self.i2c.unlock()
 
     def writable_check(self):
         # For testing if CIRCUITPY drive is writable by circuitpython
@@ -440,6 +462,40 @@ class Mcu():
             self.log.warning(f'No handler for this exception in mcu.handle_exception()')
             # raise
 
+    def get_next_alarm(self, alarm_list):
+        """
+        Returns number of seconds until the next alarm in a list,
+        e.g. alarm_list = ["10:00", "11:00", "14:53"]
+        Assumes alarms repeat daily
+        """
+
+        now = time.localtime()
+        year = now.tm_year
+        month = now.tm_mon
+        day = now.tm_mday
+
+        seconds_list = []
+
+        for t in alarm_list:
+            sp = t.split(":")
+
+            hour = int(sp[0])
+            mins = int(sp[1])
+
+            list_time = time.struct_time([year,month,day,hour,mins, 0,0,0,0])
+            posix_list_time = time.mktime(list_time)
+            seconds_to_alarm = posix_list_time - time.time()
+
+            # roll over to the next day
+            if seconds_to_alarm <=0:
+                seconds_to_alarm += 60*60*24
+
+            seconds_list.append(seconds_to_alarm)
+
+        next_alarm_countdown = min(seconds_list)
+
+        return next_alarm_countdown
+
 
 class McuLogHandler(logging.Handler):
 
@@ -447,6 +503,7 @@ class McuLogHandler(logging.Handler):
         self.aio = None # This can be passed later after aio connection is established
         self.device = mcu_device
         self.boot_time = time.monotonic()
+        self.aux_log_function = None
 
     def emit(self, record):
         """Generate the message and write it to the AIO Feed.
@@ -494,6 +551,13 @@ class McuLogHandler(logging.Handler):
                 self.device.aio.publish('log', text)
             except Exception as e:
                 print(f'Error publishing to AIO log: {e}')
+
+        if self.aux_log_function is not None:
+            # to call an auxilliary log output function (e.g. Send via Notecard)
+            try:
+                self.aux_log_function(record)
+            except Exception as e:
+                print(f'Error in aux log function: {e}')
 
         # Print to log.txt with timestamp 
         # only works if flash is set writable at boot time
