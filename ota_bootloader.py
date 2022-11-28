@@ -37,13 +37,12 @@ def reset(exception=None):
         detail = traceback.format_exception(None, exception, exception.__traceback__)
         print(detail)
         try:
-            # Only works if SD card was previously mounted
-            with open('/sd/log.txt', 'a') as f:
+            with open('log_exception.txt', 'a') as f:
                 f.write(detail)
-                print('logged exception to /sd/log.txt')
+                print('logged exception to /log_exception.txt')
 
         except Exception as e:
-                print(f'Unable to save exception details to SD card, {e}')
+                print(f'Unable to save exception details, {e}')
 
     try:
         if supervisor.runtime.usb_connected:
