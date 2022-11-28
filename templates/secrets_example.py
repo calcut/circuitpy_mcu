@@ -12,7 +12,7 @@ secrets = {
 }
 
 notecard_config = {
-    'productUID' : 'uk.ac.glasgow.calum.cuthill:XXXXXX',
+    'productUID' : 'mynotehubPID:XXXXXX',
     'mode'       : 'continuous',
     # 'mode'       : 'periodic',
     'sync'       : True,
