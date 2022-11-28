@@ -1,0 +1,4 @@
+adafruit_requests==1.12.11
+adafruit_pixelbuf==1.1.8
+neopixel==6.3.7
+adafruit_logging==5.0.1
