@@ -28,7 +28,7 @@ def main():
     }
 
     mcu = Mcu(loglevel=LOGLEVEL, i2c_freq=100000)
-    ncm = Notecard_manager(loghandler=mcu.loghandler, i2c=mcu.i2c, watchdog=120)
+    ncm = Notecard_manager(loghandler=mcu.loghandler, i2c=mcu.i2c, watchdog=120, loglevel=LOGLEVEL)
 
     mcu.log.info(f'STARTING {__filename__} {__version__}')
 
