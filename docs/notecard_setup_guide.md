@@ -8,6 +8,7 @@ CIRCUITPY/circuitpy_mcu
 IN CIRCUITPY, create/update the following files
 secrets.py
 code.py
+boot.py (if using github OTA method)
 
 Examples are provided in the circuitpy_mcu/templates folder
 Be sure to update wifi credentials (if using) and the Notehub productUID
