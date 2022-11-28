@@ -309,10 +309,16 @@ class Notecard_manager():
                 outbound=notecard_config['outbound'],
                 inbound=notecard_config['inbound'])        
 
-            req = {"req": "card.wifi"}
-            req["ssid"] = secrets['ssid']
-            req["password"] = secrets['password']
-            rsp = self.ncard.Transaction(req)
+
+            # If it is a wifi notecard, set up SSID/Password
+            req = {"req": "card.version"}
+            cardversion = self.ncard.Transaction(req)
+            if 'sku' in cardversion:
+                if cardversion['sku'] == "NOTE-WIFI":
+                    req = {"req": "card.wifi"}
+                    req["ssid"] = secrets['ssid']
+                    req["password"] = secrets['password']
+                    rsp = self.ncard.Transaction(req)
 
             req = {"req": "card.restart"}
             self.ncard.Transaction(req)
