@@ -8,7 +8,7 @@ import microcontroller
 import notecard
 from notecard import hub, card, file, note, env
 
-from secrets import secrets
+from secrets import secrets, notecard_config
 
 
 class Notecard_manager():
@@ -44,6 +44,7 @@ class Notecard_manager():
             self.connected = False
             self.last_sync = 0
 
+            self.check_config()
             self.wait_for_time()
             self.sync_time()
 
@@ -57,6 +58,40 @@ class Notecard_manager():
                 card.attn(self.ncard, mode="watchdog", seconds=watchdog)
         except Exception as e:
             self.handle_exception(e)
+
+    def check_config(self):
+
+        config_ok = True 
+        self.log.info("Checking notecard settings match the notecard_config in secrets.py")
+
+        hubget = hub.get(self.ncard)
+
+        if hubget["product"] != notecard_config["productUID"]:
+            self.log.warning(f"Notecard productUID {hubget['product']} doesn't match {notecard_config['productUID']}")
+            config_ok = False
+
+        for setting in ['inbound', 'outbound', 'sync', 'mode']:
+            if setting in hubget:
+                if hubget[setting] != notecard_config[setting]:
+                    self.log.warning(f"Notecard setting {hubget[setting]} doesn't match {notecard_config[setting]}")
+                    config_ok = False
+
+        # wifi
+        req = {"req": "card.wifi"}
+        cardwifi = self.ncard.Transaction(req)
+
+        if "ssid" in cardwifi:
+            if cardwifi["ssid"] != secrets["ssid"]:
+                self.log.warning(f"Notecard SSID {cardwifi['ssid']} doesn't match {secrets['ssid']}")
+                config_ok = False
+                
+        if config_ok == False:
+            self.log.warning('Reconfiguring Notecard in 15s')
+            time.sleep(15)
+            self.reconfigure()
+        else:
+            self.log.info('Config OK')
+
 
     def check_status(self, nosync_timeout=None, nosync_warning=120):
         try:
@@ -267,7 +302,12 @@ class Notecard_manager():
             # req["connected"] = False
             # self.ncard.Transaction(req)
 
-            hub.set(self.ncard, product=secrets['productUID'], mode=self.mode, sync=True, outbound=2, inbound=2)        
+            hub.set(self.ncard, 
+                product=notecard_config['productUID'],
+                mode=notecard_config['mode'],
+                sync=notecard_config['sync'],
+                outbound=notecard_config['outbound'],
+                inbound=notecard_config['inbound'])        
 
             req = {"req": "card.wifi"}
             req["ssid"] = secrets['ssid']
@@ -276,6 +316,8 @@ class Notecard_manager():
 
             req = {"req": "card.restart"}
             self.ncard.Transaction(req)
+            self.log.info('restarting Notecard, waiting 20s')
+            time.sleep(20)
         except Exception as e:
             self.handle_exception(e)
 
