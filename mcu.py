@@ -6,8 +6,6 @@
 import time
 import rtc
 import microcontroller
-import supervisor
-import gc
 import usb_cdc
 import adafruit_logging as logging
 import traceback
@@ -20,25 +18,6 @@ import neopixel
 import busio
 import digitalio
 import analogio
-import adafruit_sdcard
-import storage
-
-# Networking
-try:
-    from circuitpy_mcu.aio import Aio_http, Aio_mqtt
-except ImportError as e:
-    print(e)
-    
-try:
-    from circuitpy_mcu.wifi_manager import Wifi_manager
-except ImportError as e:
-    print(e)
-
-try:
-    # RTC on adalogger board
-    import adafruit_pcf8523
-except ImportError:
-    pass
 
 try:
     # Import Known display types
@@ -47,25 +26,15 @@ except:
     pass
 
 
-__version__ = "0.0.0-auto.0"
+__version__ = "3.0.1"
 __repo__ = "https://github.com/calcut/circuitpy-mcu"
 
 class Mcu():
-    def __init__(self, i2c_freq=50000, i2c_lookup=None, uart_baud=None, wifi=True, loglevel=logging.INFO):
+    def __init__(self, i2c_freq=50000, i2c_lookup=None, uart_baud=None, loglevel=logging.INFO):
 
         uid = microcontroller.cpu.uid
         self.id = f'{uid[-2]:02x}{uid[-1]:02x}'
 
-        # Initialise some key variables
-
-        self.aio_log_feed = None
-        self.aio = None
-        self.data = {} # A dict to store the outgoing values of data
-        self.logdata = None # A str to accumulate non urgent logs to send to AIO periodically
-        self.booting = False # a flag to indicate boot log messages should be recorded
-        self.timer_publish = time.monotonic()
-        self.timer_throttled = time.monotonic()
-        self.sdcard = None
         self.display = None
         self.serial_buffer = ''
 
@@ -82,6 +51,13 @@ class Mcu():
         # Pull the I2C power pin low to enable I2C power
         self.log.info('Powering up I2C bus')
         self.i2c_power = digitalio.DigitalInOut(board.I2C_POWER)
+
+        # Due to board rev B/C differences, need to read the initial state
+        # https://learn.adafruit.com/adafruit-esp32-s2-feather/i2c-power-management
+        self.i2c_power.switch_to_input()
+        time.sleep(0.01)  # wait for default value to settle
+        self.i2c_off_level = self.i2c_power.value
+
         self.i2c_power_on()
         self.i2c = busio.I2C(board.SCL, board.SDA, frequency=i2c_freq)
 
@@ -108,22 +84,9 @@ class Mcu():
         self.led.direction = digitalio.Direction.OUTPUT
         self.led.value = False
 
-        self.aio_group = None
-
-        if wifi:
-            self.wifi = Wifi_manager(loghandler=self.loghandler)
-            self.wifi.log.setLevel(loglevel)
-        else:
-            self.wifi = None
-
     def service(self, serial_parser=None):
         self.watchdog_feed()
         self.read_serial(send_to=serial_parser)
-        # if self.wifi:
-        #     if self.wifi.connected:
-        #         self.pixel[0] = self.pixel.CYAN
-        #     else:
-        #         self.pixel[0] = self.pixel.RED
 
     def watchdog_feed(self):
         try:
@@ -132,92 +95,19 @@ class Mcu():
             # Happens if watchdog timer hasn't been started
             pass
 
-    def aio_setup(self, aio_group=None, http=False):
-        try:
-            if aio_group:
-                self.aio_group = aio_group
-            if self.aio_group == None:
-                self.aio_group = self.id
-
-            self.log.info(f"Setting up AIO connection with group={self.aio_group}")
-
-            if http:
-                self.aio = Aio_http(self.wifi.requests, self.aio_group, self.loghandler)
-            else:
-                self.aio = Aio_mqtt(self.wifi.pool, self.aio_group, self.loghandler)
-            self.aio.log.setLevel(self.log.getEffectiveLevel())
-            self.loghandler.aio = self.aio
-            self.aio.rtc = self.rtc
-            if not self.wifi.connectivity_check(host='adafruit.com'):
-                raise ConnectionError('aio_setup: WiFi reconnection requested')
-            self.aio.connect()
-            return True
-
-        except Exception as e:
-            self.handle_exception(e)
-
-    def aio_sync_http(self, receive_interval=10, publish_interval=10):
-        try:
-            if not self.wifi.connectivity_check(host='adafruit.com'):
-                self.log.info('aio_sync cancelled: no wifi connection')
-                return False
-            if self.aio:
-                self.aio.receive(interval=receive_interval)
-                self.aio.publish_feeds(self.data, interval=publish_interval, location=None)
-            else:
-                self.log.warning('aio_sync failed, aio_setup() will be re-run')
-                self.aio_setup()
-                self.aio_sync_http()
-
-            return True
-
-        except Exception as e:
-            self.handle_exception(e)
-            self.aio_sync_http()
-
-    def aio_subscribe(self, feed_key, get_latest=True):
-        try:
-            self.aio.subscribe(feed_key, get_latest=get_latest)
-        except Exception as e:
-            self.handle_exception(e)
-
-    def aio_sync(self, data_dict, publish_interval=10):
-        try:
-            if self.wifi.offline_mode:
-                self.log.debug('aio_sync cancelled: wifi in offline mode')
-                self.wifi.connectivity_check()
-                return False
-            if not self.aio:
-                self.log.error('please run aio_setup first')
-                return False
-            if not self.aio.connected:
-                self.log.warning('AIO not connected, trying to connect now')
-                self.aio.connect()
-
-            self.aio.sync(data_dict, loop_timeout=0, publish_interval=publish_interval)
-            
-            # clear the dict after sync (to prevent sending duplicate values next time)
-            data_dict = {}
-            return True
-
-        except Exception as e:
-            self.handle_exception(e)
-
     def i2c_power_on(self):
-        # Due to board rev B/C differences, need to read the initial state
-        # https://learn.adafruit.com/adafruit-esp32-s2-feather/i2c-power-management
-        self.i2c_power.switch_to_input()
-        time.sleep(0.01)  # wait for default value to settle
-        rest_level = self.i2c_power.value
-
-        self.i2c_power.switch_to_output(value=(not rest_level))
+        self.i2c_power.switch_to_output(value=(not self.i2c_off_level))
         time.sleep(1.5) # Sometimes even 1s is not enough for e.g. i2c displays. Worse in the heat?
 
     def i2c_power_off(self):
-        self.i2c_power.switch_to_output(value=True)
+        self.i2c_power.switch_to_output(value=self.i2c_off_level)
         time.sleep(1)
 
     def enable_i2c2(self, sda=board.D6, scl=board.D5, frequency=50000):
+        """
+        A 2nd i2c bus is helpful to avoid issues with too many devices on a single bus
+        e.g. Notecard i2c comms will fail if there are too many pull-up resistors
+        """
         self.i2c2 = busio.I2C(sda=sda, scl=scl, frequency=frequency)
 
     def i2c_identify(self, i2c_lookup=None, i2c=None):
@@ -271,98 +161,12 @@ class Mcu():
             self.display = None
             self.handle_exception(e)
 
-    def attach_rtc_pcf8523(self):
-        try:
-            self.rtc = adafruit_pcf8523.PCF8523(self.i2c)
-            self.log.info("Using external RTC PCF8523")
-        except ValueError as e:
-            self.log.warning(f'No RTC found: {e}')
-
     def attach_display_sparkfun_20x4(self):
         try:
             display = LCD_20x4(self.i2c)
             self.attach_display(display)
         except ValueError as e:
             self.log.warning(f'No Display found: {e}')
-
-    def attach_sdcard(self, cs_pin=board.D10):
-        
-        try:
-            spi = busio.SPI(board.SCK, MOSI=board.MOSI, MISO=board.MISO)
-            cs = digitalio.DigitalInOut(cs_pin)
-            self.sdcard = adafruit_sdcard.SDCard(spi, cs)
-            vfs = storage.VfsFat(self.sdcard)
-            storage.mount(vfs, "/sd")
-            self.display_text('SD Card Mounted')
-            self.log.info('SD Card Mounted')
-            return True
-        except OSError:
-            self.sdcard = None
-            self.log.warning('SD Card not mounted')
-            return False
-        except Exception as e:
-            self.sdcard = None
-            self.handle_exception(e)
-
-    def delete_archive(self, archive_dir='/sd/archive'):
-        try:
-            list = os.listdir(archive_dir)
-            for f in list:
-                filepath = f'{archive_dir}/{f}'
-                os.remove(filepath)
-                self.log.info(f'Deleted {filepath}')
-        except:
-            self.log.warning(f'{archive_dir} directory not found to delete')
-            return
-
-
-    def archive_file(self, file, dir='/sd', archive_dir='/sd/archive'):
-
-        try:
-            list = os.listdir(dir)
-        except:
-            self.log.warning(f'{dir} directory not found')
-            return
-
-        if not file in list:
-            self.log.warning(f'{dir}/{file} file not found for archival')
-            return
-
-        try:
-            os.mkdir(archive_dir)
-        except:
-            # typically archive_dir already exists
-            pass
-
-        try:
-            n=1
-            filepath = f'{dir}/{file}'
-            file = file[:-4] #Remove the extension, assumes 3 char extension
-            newfile = f'{file}_{n:02d}.txt'
-
-            while True:
-                if newfile in os.listdir(archive_dir):
-                    n+=1
-                    newfile = f'{file}_{n:02d}.txt'
-                else:
-                    break
-
-            newpath = f'{archive_dir}/{newfile}'
-
-            try:
-                with open(filepath, 'r') as f:
-                    lines = f.readlines()
-                    self.log.info(f'---Last 10 lines of previous log {filepath}---')
-                    for l in lines[-10:]:
-                        self.log.info(l[:-1])
-                    self.log.info('--End of Previous log---')
-            except MemoryError as e:
-                self.log.warning('MemoryError reading file before archive: size may be too big')
-
-            os.rename(filepath, newpath)
-            self.log.info(f'{filepath} moved to {newpath}')
-        except Exception as e:
-            self.handle_exception(e)
 
     def display_text(self, text):
         if self.display:
@@ -377,11 +181,6 @@ class Mcu():
             else:
                 self.log.error("Unknown Display")
 
-        # Seeing I2C errors when used with notecard, this may prevent it.
-        # Unsure why!
-            self.i2c.try_lock()
-            self.i2c.unlock()
-
     def writable_check(self):
         # For testing if CIRCUITPY drive is writable by circuitpython
         try:
@@ -395,6 +194,12 @@ class Mcu():
             return False
 
     def read_serial(self, send_to=None):
+        """
+        Checks if there is any input on the usb serial port.
+        Typically this would be a keyboard input as part of a user interface.
+
+        If a complete line is detected, it will pass the string to the function: send_to()
+        """
         serial = usb_cdc.console
         text = ''
         available = serial.in_waiting
@@ -427,6 +232,11 @@ class Mcu():
                 return input_line
     
     def get_serial_line(self, valid_inputs=None):
+
+        """
+        A wrapper for read_serial() that waits for a complete input line.
+        Input validation is possible by providing a list of expected inputs.
+        """
         
         while True:
             line = None
@@ -452,15 +262,12 @@ class Mcu():
     def handle_exception(self, e):
 
         cl = e.__class__
-        if cl == ConnectionError:
-            self.log.warning(f'ConnectionError at mcu level, forwarding to wifi handler')
-            self.wifi.handle_exception(e)
-        else:
-            # formats an exception to print to log as an error,
-            # includues the traceback (to show code line number)
-            self.log.error(traceback.format_exception(None, e, e.__traceback__))
-            self.log.warning(f'No handler for this exception in mcu.handle_exception()')
-            # raise
+
+        # formats an exception to print to log as an error,
+        # includues the traceback (to show code line number)
+        self.log.error(traceback.format_exception(None, e, e.__traceback__))
+        self.log.warning(f'No handler for this exception in mcu.handle_exception()')
+        # raise
 
     def get_next_alarm(self, alarm_list):
         """
@@ -500,34 +307,17 @@ class Mcu():
 class McuLogHandler(logging.Handler):
 
     def __init__(self, mcu_device):
-        self.aio = None # This can be passed later after aio connection is established
         self.device = mcu_device
-        self.boot_time = time.monotonic()
         self.aux_log_function = None
 
     def emit(self, record):
-        """Generate the message and write it to the AIO Feed.
-
-        :param level: The level at which to log
-        :param msg: The core message
-
-        """
 
         if record.levelno == 25:
             # Special handling for messages to be displayed on an attached display
             self.device.display_text(record.msg)
             return
 
-
         if record.levelno == logging.INFO:
-
-            # This is a method to accumulate boot messages and send them in big chunks to AIO
-            if self.device.booting:
-                if not self.device.logdata:
-                    self.device.logdata = record.msg
-                else:
-                    self.device.logdata += '\n'+record.msg
-
             # Don't include the "INFO" in the string, because this used a lot,
             # and is effectively the default.
             text = f'{record.name} {record.msg}'
@@ -537,51 +327,10 @@ class McuLogHandler(logging.Handler):
         # Print to Serial
         print(text)
 
-        # Print to AIO, only if level is WARNING or higher
-        #   AND we are connected to AIO
-        #   AND we are not currently throttled
-        if (self.device.aio
-            and self.device.wifi.connected
-            and self.device.aio.connected
-            and not self.device.aio.throttled
-            and record.levelno >= logging.WARNING):
-            
-            try:
-                print('debug - sending log to AIO')
-                self.device.aio.publish('log', text)
-            except Exception as e:
-                print(f'Error publishing to AIO log: {e}')
-
         if self.aux_log_function is not None:
             # to call an auxilliary log output function (e.g. Send via Notecard)
             try:
                 self.aux_log_function(record)
             except Exception as e:
                 print(f'Error in aux log function: {e}')
-
-        # Print to log.txt with timestamp 
-        # only works if flash is set writable at boot time
-        # try:
-        #     with open('log.txt', 'a+') as f:
-        #         ts = self.device.get_timestamp() #timestamp from the RTC
-        #         text = f'{ts} {text}\r\n'
-        #         f.write(text)
-        # except OSError as e:
-        #     print(f'FS not writable {self.format(level, msg)}')
-        #     if e.args[0] == 28:  # If the file system is full...
-        #         print(f'Filesystem full')
-
-        # Print to SDCARD log.txt with timestamp 
-        # only works if attach_sd_card() function has been run.
-        if self.device.sdcard:
-            try:
-                with open('/sd/log.txt', 'a') as f:
-                    ts = self.device.get_timestamp() #timestamp from the RTC
-                    text = f'{ts} {text}\r\n'
-                    f.write(text)
-            except OSError as e:
-                print(f'SDCard FS not writable {e}')
-            except RuntimeError as e:
-                print(f"SDcard RuntimeError: {e}")
-                print(f"While attempting to write {text}")
 
