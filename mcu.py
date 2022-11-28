@@ -22,8 +22,8 @@ import analogio
 try:
     # Import Known display types
     from circuitpy_mcu.display import LCD_16x2, LCD_20x4
-except:
-    pass
+except ImportError as e:
+    print(str(e))
 
 
 __version__ = "3.0.1"
