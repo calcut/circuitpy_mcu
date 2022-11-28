@@ -28,12 +28,10 @@ def main():
     }
 
     mcu = Mcu(loglevel=LOGLEVEL, i2c_freq=100000)
-    ncm = Notecard_manager(loghandler=mcu.loghandler, i2c=mcu.i2c, watchdog=120, loglevel=LOGLEVEL)
-
-    mcu.log.info(f'STARTING {__filename__} {__version__}')
-
-    # External I2C display
     mcu.attach_display_sparkfun_20x4()
+
+    ncm = Notecard_manager(loghandler=mcu.loghandler, i2c=mcu.i2c, watchdog=120, loglevel=LOGLEVEL)
+    mcu.log.info(f'STARTING {__filename__} {__version__}')
 
     # set defaults for environment variables, (to be overridden by notehub)
     env = {
