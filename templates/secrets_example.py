@@ -3,15 +3,19 @@
 
 secrets = {
 
-
-# Default Wifi Credentials
+# Wifi Credentials
     'ssid' : 'xxx',
     'password' : 'xxxx',
 
     'timezone' : 'Europe/London',
 
-        
-# Notecard Settings
-    'productUID' : "uk.ac.glasgow.calum.cuthill:XXXXXX",
+}
 
+notecard_config = {
+    'productUID' : 'uk.ac.glasgow.calum.cuthill:XXXXXX',
+    'mode'       : 'continuous',
+    # 'mode'       : 'periodic',
+    'sync'       : True,
+    'inbound'    : 2,
+    'outbound'   : 2,
 }
