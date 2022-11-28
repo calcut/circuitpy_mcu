@@ -37,6 +37,7 @@ class Mcu():
 
         self.display = None
         self.serial_buffer = ''
+        self.data = {} # A dict to store datapoints as they are captured
 
         # Real Time Clock in ESP32-S2 can be used to track timestamps
         self.rtc = rtc.RTC()
