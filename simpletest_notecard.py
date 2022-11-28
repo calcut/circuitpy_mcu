@@ -7,7 +7,7 @@ import time
 import adafruit_logging as logging
 
 
-__version__ = "v3.0.0_notecard"
+__version__ = "v3.1.0"
 __filename__ = "simpletest_notecard.py"
 __repo__ = "https://github.com/calcut/circuitpy-mcu"
 
