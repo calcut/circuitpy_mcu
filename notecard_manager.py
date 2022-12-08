@@ -66,9 +66,10 @@ class Notecard_manager():
 
         hubget = hub.get(self.ncard)
 
-        if hubget["product"] != notecard_config["productUID"]:
-            self.log.warning(f"Notecard productUID {hubget['product']} doesn't match {notecard_config['productUID']}")
-            config_ok = False
+        if "product" in hubget:
+            if hubget["product"] != notecard_config["productUID"]:
+                self.log.warning(f"Notecard productUID {hubget['product']} doesn't match {notecard_config['productUID']}")
+                config_ok = False
 
         for setting in ['inbound', 'outbound', 'sync', 'mode']:
             if setting in hubget:
