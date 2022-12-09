@@ -66,10 +66,9 @@ class Notecard_manager():
 
         hubget = hub.get(self.ncard)
 
-        if "product" in hubget:
-            if hubget["product"] != notecard_config["productUID"]:
-                self.log.warning(f"Notecard productUID {hubget['product']} doesn't match {notecard_config['productUID']}")
-                config_ok = False
+        if hubget["product"] != notecard_config["productUID"]:
+            self.log.warning(f"Notecard productUID {hubget['product']} doesn't match {notecard_config['productUID']}")
+            config_ok = False
 
         for setting in ['inbound', 'outbound', 'sync', 'mode']:
             if setting in hubget:
@@ -213,6 +212,9 @@ class Notecard_manager():
                             except Exception as e:
                                     self.log.error(f"Could not parse {key} = {val}, {e}")
                             self.log.debug(f"environment update: {key} = {typed_val}")
+                        elif key[0] != "_":
+                            typed_env[key] = val
+                            self.log.debug(f"environment update: {key} = {val} *unknown type*")
                 return True
             else:
                 # No update
