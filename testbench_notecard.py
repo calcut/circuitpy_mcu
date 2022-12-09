@@ -14,7 +14,7 @@ import microcontroller
 
 
 
-__version__ = "v3.1.0"
+__version__ = "v0.0.0"
 __filename__ = "testbench_notecard.py"
 __repo__ = "https://github.com/calcut/circuitpy-mcu"
 
