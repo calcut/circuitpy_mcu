@@ -21,3 +21,20 @@ The following code allows notehub to process "timestamped notes" to send to Init
     /* Tidy up by combining into a single array*/
     $reduce($array, $f4);
 )
+
+
+Sparrow Version
+(
+    /* create a new object with keys: key,value,epoch */
+    /* key is modified to include 5 digits from the file (i.e. sparrow node ID*/
+    $f1 := function($k, $v, $e) {$merge([{"key" : $substring(file, 19,5)&"."&$k},{"value" : $v},{"epoch" : $e}])};
+
+    /* accumulate function */
+    $f2 := function($i, $j){$append($i, $j)};
+
+    /* take each item in body, test with f2 and apply formatting with either f3 or f1*/
+    $array := $each(body, function($v, $k) {$f1($k, $v, when)});
+
+    /* Tidy up by combining into a single array*/
+    $reduce($array, $f2);
+)
