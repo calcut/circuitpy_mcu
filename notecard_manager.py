@@ -17,14 +17,17 @@ class Notecard_manager():
             # Set up logging
             self.log = logging.getLogger('notecard')
             self.log.setLevel(loglevel)
-            if loghandler:
-                self.log.addHandler(loghandler)
-                loghandler.aux_log_function = self.log_function
+
+            self.ncard=None
 
             if i2c:
                 self.ncard = notecard.OpenI2C(i2c, 0, 0, debug=debug)
             else:
                 self.log.critical('an I2C bus must be provided')
+
+            if loghandler:
+                self.log.addHandler(loghandler)
+                loghandler.aux_log_function = self.log_function
 
             self.display("Starting Notecard Manager")
 
@@ -58,6 +61,7 @@ class Notecard_manager():
                 card.attn(self.ncard, mode="watchdog", seconds=watchdog)
         except Exception as e:
             self.handle_exception(e)
+            self.log.error("Could not initialise Notecard")
 
     def check_config(self):
 
@@ -97,6 +101,7 @@ class Notecard_manager():
     def check_status(self, nosync_timeout=None, nosync_warning=120):
         try:
             cstatus = card.status(self.ncard)
+            self.log.debug(str(cstatus))
             if "storage" in cstatus:
                 percentage = cstatus["storage"]
                 if percentage > 50:
@@ -112,10 +117,10 @@ class Notecard_manager():
             rsp = hub.syncStatus(self.ncard)
 
             if 'status' in rsp:
+                self.log.debug(str(rsp))
                 status = rsp['status']
                 if status != 'completed {sync-end}':
                     self.display(status)
-                    self.log.debug(str(rsp))
             if 'completed' in rsp:
                 t_since_sync = rsp['completed']
             if 'reqested' in rsp:
