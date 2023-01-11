@@ -10,13 +10,13 @@ The following code allows notehub to process "timestamped notes" to send to Init
     $f2 := function($a) {$type($a) = "object"};
 
     /* add an epoch to each of the key/value pairs in a dict*/
-    $f3 := function($dict, $epoch) {$each($dict, function($v, $k) {$f1($k , $v, $epoch)})};
+    $f3 := function($dict, $epoch) {$each($dict, function($v, $k) {$f1(sn&"."&$k , $v, $epoch)})};
 
     /* accumulate function */
     $f4 := function($i, $j){$append($i, $j)};
 
     /* take each item in body, test with f2 and apply formatting with either f3 or f1*/
-    $array := $each(body, function($v, $k) {$f2($v) ? $f3($v, $k) : $f1($k, $v, when)});
+    $array := $each(body, function($v, $k) {$f2($v) ? $f3($v, $k) : $f1(sn&"."&$k, $v, when)});
 
     /* Tidy up by combining into a single array*/
     $reduce($array, $f4);
