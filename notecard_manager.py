@@ -146,6 +146,7 @@ class Notecard_manager():
 
     def wait_for_time(self):
         try:
+            stamp = time.monotonic()
             while True:
                 self.check_status(nosync_timeout=100)
                 if self.connected:
@@ -158,11 +159,12 @@ class Notecard_manager():
                     self.log.info(f'No connection, but time was set at {self.last_sync}')
                     break
 
-                time.sleep(1)
+                if time.monotonic() - stamp > 100:
+                    stamp = time.monotonic()
+                    self.log.critical("Timeout while waiting for notecard time, reconfiguring notecard")
+                    self.reconfigure()
 
-        except WatchDogTimeout:
-            self.log.critical("Watchdog timeout while waiting for notecard time, reconfiguring notecard")
-            self.reconfigure()
+                time.sleep(1)
 
         except Exception as e:
             self.handle_exception(e)
