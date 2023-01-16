@@ -3,6 +3,7 @@ import adafruit_logging as logging
 import rtc
 import traceback
 import microcontroller
+from watchdog import WatchDogTimeout
 
 # https://github.com/blues/note-python
 import notecard
@@ -158,6 +159,10 @@ class Notecard_manager():
                     break
 
                 time.sleep(1)
+
+        except WatchDogTimeout:
+            self.log.critical("Watchdog timeout while waiting for notecard time, reconfiguring notecard")
+            self.reconfigure()
 
         except Exception as e:
             self.handle_exception(e)
