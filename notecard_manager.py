@@ -113,6 +113,11 @@ class Notecard_manager():
                 self.connected = True
                 return
 
+            # Sync with 'allow' to avoid penalty boxes
+            req = {"req": "hub.sync"}
+            req['allow'] = True
+            self.ncard.Transaction(req)
+
             self.connected = False
             t_since_sync = 0
             self.last_sync = 0
