@@ -104,7 +104,7 @@ class Notecard_manager():
     def check_status(self, nosync_timeout=None, nosync_warning=120):
         try:
             cstatus = card.status(self.ncard)
-            self.log.debug(str(cstatus))
+            self.log.debug(f"card.status={cstatus}")
             if "storage" in cstatus:
                 percentage = cstatus["storage"]
                 if percentage > 50:
@@ -119,29 +119,25 @@ class Notecard_manager():
             self.ncard.Transaction(req)
 
             self.connected = False
-            t_since_sync = 0
+            t_since_sync = nosync_timeout
             self.last_sync = 0
 
             rsp = hub.syncStatus(self.ncard)
-
-            if 'status' in rsp:
-                self.log.debug(str(rsp))
-                status = rsp['status']
-                if status != 'completed {sync-end}':
-                    self.display(status)
+            self.log.debug(f"hub.syncStatus = {rsp}")
+            self.display(str(rsp))
+            time.sleep(2)
             if 'completed' in rsp:
                 t_since_sync = rsp['completed']
-            if 'reqested' in rsp:
+            if 'requested' in rsp:
                 t_since_sync = rsp['requested']
             if 'time' in rsp:
                 self.last_sync = rsp['time']
 
             if nosync_warning:
-                if t_since_sync > nosync_warning:
+                if t_since_sync >= nosync_warning:
                     self.log.debug(f"no sync in {t_since_sync}s")
-
             if nosync_timeout:        
-                if t_since_sync > nosync_timeout:
+                if t_since_sync >= nosync_timeout:
                     self.log.critical(f"no sync in {t_since_sync}s, timed out, reconfiguring notecard")
                     # microcontroller.reset()
                     self.reconfigure()
