@@ -113,10 +113,18 @@ class Notecard_manager():
                 self.connected = True
                 return
 
+            req = {"req":"card.trace"}
+            req["start"] = True
+            self.ncard.Transaction(req)
+
             # Sync with 'allow' to avoid penalty boxes
             req = {"req": "hub.sync"}
             req['allow'] = True
             self.ncard.Transaction(req)
+
+            req = {"req":"card.trace"}
+            req["stop"] = True
+            debug_trace = self.ncard.Transaction(req)
 
             self.connected = False
             t_since_sync = nosync_timeout
@@ -138,7 +146,7 @@ class Notecard_manager():
                     self.log.debug(f"no sync in {t_since_sync}s")
             if nosync_timeout:        
                 if t_since_sync >= nosync_timeout:
-                    self.log.critical(f"no sync in {t_since_sync}s, timed out, reconfiguring notecard")
+                    self.log.critical(f"no sync in {t_since_sync}s, timed out, reconfiguring notecard. Trace = {debug_trace}")
                     # microcontroller.reset()
                     self.reconfigure()
          
