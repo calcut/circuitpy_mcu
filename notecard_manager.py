@@ -2,8 +2,6 @@ import time
 import adafruit_logging as logging
 import rtc
 import traceback
-import microcontroller
-from watchdog import WatchDogTimeout
 
 # https://github.com/blues/note-python
 import notecard
@@ -13,7 +11,7 @@ from secrets import secrets, notecard_config
 
 
 class Notecard_manager():
-    def __init__(self, loghandler=None, i2c=None, debug=False, loglevel=logging.INFO, watchdog=False):
+    def __init__(self, loghandler=None, i2c=None, debug=False, loglevel=logging.INFO, watchdog=False, synctime=True):
         try:
             # Set up logging
             self.log = logging.getLogger('notecard')
@@ -49,8 +47,9 @@ class Notecard_manager():
             self.last_sync = 0
 
             self.check_config()
-            self.wait_for_time()
-            self.sync_time()
+            if synctime:
+                self.wait_for_time()
+                self.sync_time()
 
             if watchdog:
                 # start a watchdog timer
@@ -161,8 +160,9 @@ class Notecard_manager():
                 if self.connected:
                     self.log.info("connected")
                     break
+                
 
-                print(f'{self.last_sync=}')
+                print(f'Waiting for Notecard Time {self.last_sync=}')
 
                 if self.last_sync > 0:
                     self.log.info(f'No connection, but time was set at {self.last_sync}')
@@ -187,7 +187,7 @@ class Notecard_manager():
         except Exception as e:
             self.handle_exception(e)
 
-    def set_default_envs(self, typed_env, clear=True):
+    def set_default_envs(self, typed_env, clear=True, sync=True):
         try:
             for key, val in typed_env.items():
                 env.default(self.ncard, key, str(val))
@@ -200,7 +200,8 @@ class Notecard_manager():
                         env.default(self.ncard, key)
                         self.log.warning(f'clearing default environment variable: {key}')
 
-            hub.sync(self.ncard)
+            if sync:
+                hub.sync(self.ncard)
             self.receive_environment(typed_env)
         except Exception as e:
             self.handle_exception(e)
@@ -354,6 +355,18 @@ class Notecard_manager():
         except Exception as e:
             self.handle_exception(e)
 
+    def sleep_mcu(self, seconds):
+
+        req = {"req": "card.attn"}
+        req["mode"] = "disarm,-all"
+        self.ncard.Transaction(req)
+
+        req = {"req": "card.attn"}
+        req["mode"] = "sleep"
+        req["seconds"] = seconds
+        # req["payload"] = None
+        self.ncard.Transaction(req)
+
     def display(self, message):
         # Special log command with custom level, to request sending to attached display
         self.log.log(level=25, msg=message)
@@ -361,11 +374,11 @@ class Notecard_manager():
     def handle_exception(self, e):
         cl = e.__class__
         if cl == OSError:
-            self.log.error(traceback.format_exception(None, e, e.__traceback__))
+            self.log.error(str(traceback.format_exception(None, e, e.__traceback__)))
             self.log.warning("{cl} {e}, Notecard restarting, or i2c bus issue, too many pullups?")
             time.sleep(1)
         else:
-            self.log.error(traceback.format_exception(None, e, e.__traceback__))
+            self.log.error(str(traceback.format_exception(None, e, e.__traceback__)))
             self.log.critical(f"Unhandled Notecard Error, Raising")
             raise e
 
