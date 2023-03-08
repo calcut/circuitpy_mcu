@@ -14,7 +14,6 @@ import os
 
 # On-board hardware
 import board
-import neopixel
 import busio
 import digitalio
 import analogio
@@ -29,8 +28,8 @@ except ImportError as e:
 __version__ = "v3.1.2"
 __repo__ = "https://github.com/calcut/circuitpy-mcu"
 
-class Mcu():
-    def __init__(self, i2c_freq=50000, i2c_lookup=None, uart_baud=None, loglevel=logging.INFO):
+class Mcu_swan():
+    def __init__(self, i2c_freq=100000, i2c_lookup=None, uart_baud=None, loglevel=logging.INFO):
 
         uid = microcontroller.cpu.uid
         self.id = f'{uid[-2]:02x}{uid[-1]:02x}'
@@ -49,67 +48,19 @@ class Mcu():
         self.log.addHandler(self.loghandler)
         self.log.setLevel(loglevel)
 
-        # Pull the I2C power pin low to enable I2C power
-        self.log.info('Powering up I2C bus')
-        self.i2c_power = digitalio.DigitalInOut(board.I2C_POWER)
-
-        # Due to board rev B/C differences, need to read the initial state
-        # https://learn.adafruit.com/adafruit-esp32-s2-feather/i2c-power-management
-        self.i2c_power.switch_to_input()
-        time.sleep(0.01)  # wait for default value to settle
-        self.i2c_off_level = self.i2c_power.value
-
-        self.i2c_power_on()
-        self.i2c = busio.I2C(board.SCL, board.SDA, frequency=i2c_freq)
-
-        self.i2c2 = None
-
         if uart_baud:
             self.uart = busio.UART(board.TX, board.RX, baudrate=uart_baud)
         else:
             self.uart = None
 
-        # Setup Neopixel, helpful to indicate status 
-        self.pixel = neopixel.NeoPixel(board.NEOPIXEL, 1, auto_write=True)
-        self.pixel.RED      = 0xff0000
-        self.pixel.GREEN    = 0x00ff00
-        self.pixel.BLUE     = 0x0000ff
-        self.pixel.MAGENTA  = 0xff00ff
-        self.pixel.YELLOW   = 0xffff00
-        self.pixel.CYAN     = 0x00ffff
-        pixel_brightness = 0.1
-        self.pixel.brightness = pixel_brightness
-        self.pixel[0] = self.pixel.GREEN
+        self.i2c = busio.I2C(board.SCL, board.SDA, frequency=i2c_freq)
 
         self.led = digitalio.DigitalInOut(board.LED)
         self.led.direction = digitalio.Direction.OUTPUT
         self.led.value = False
 
     def service(self, serial_parser=None):
-        self.watchdog_feed()
         self.read_serial(send_to=serial_parser)
-
-    def watchdog_feed(self):
-        try:
-            microcontroller.watchdog.feed()
-        except ValueError:
-            # Happens if watchdog timer hasn't been started
-            pass
-
-    def i2c_power_on(self):
-        self.i2c_power.switch_to_output(value=(not self.i2c_off_level))
-        time.sleep(1.5) # Sometimes even 1s is not enough for e.g. i2c displays. Worse in the heat?
-
-    def i2c_power_off(self):
-        self.i2c_power.switch_to_output(value=self.i2c_off_level)
-        time.sleep(1)
-
-    def enable_i2c2(self, sda=board.D6, scl=board.D5, frequency=50000):
-        """
-        A 2nd i2c bus is helpful to avoid issues with too many devices on a single bus
-        e.g. Notecard i2c comms will fail if there are too many pull-up resistors
-        """
-        self.i2c2 = busio.I2C(sda=sda, scl=scl, frequency=frequency)
 
     def i2c_identify(self, i2c_lookup=None, i2c=None):
         if i2c is None:
@@ -251,15 +202,7 @@ class Mcu():
                     continue
             
             return line
-
-    def ota_reboot(self):
-        if self.writable_check():
-            self.log.warning('OTA update requested, resetting')
-            time.sleep(1)
-            microcontroller.reset()
-        else:
-            self.log.warning('OTA update requested, but CIRCUITPY not writable, skipping')
-
+        
     def handle_exception(self, e):
 
         cl = e.__class__
@@ -310,6 +253,7 @@ class McuLogHandler(logging.Handler):
     def __init__(self, mcu_device):
         self.device = mcu_device
         self.aux_log_function = None
+        self.level = logging.NOTSET
 
     def emit(self, record):
 
