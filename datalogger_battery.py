@@ -68,7 +68,7 @@ def main():
                 mcu.log.info(f"next sample set for {next_sample.tm_hour:02d}:{next_sample.tm_min:02d}:00")
     
     mcu = Mcu_swan(loglevel=LOGLEVEL)
-    ncm = Notecard_manager(loghandler=mcu.loghandler, i2c=mcu.i2c, watchdog=120, loglevel=LOGLEVEL)
+    ncm = Notecard_manager(loghandler=mcu.loghandler, i2c=mcu.i2c, watchdog=120, loglevel=LOGLEVEL, synctime=False)
     mcu.led.value = True
     mcu.log.info(f'STARTING {__filename__} {__version__}')
 
