@@ -4,9 +4,9 @@ from circuitpy_mcu.notecard_manager import Notecard_manager
 from circuitpy_mcu.mcu import Mcu_swan
 import adafruit_logging as logging
 import adafruit_mcp9600
-import busio
-import board
+import supervisor
 from notecard import hub, card, file, note, env
+
 
 
 
@@ -14,7 +14,7 @@ __version__ = "0.1.0"
 __filename__ = "datalogger_battery.py"
 __repo__ = "https://github.com/calcut/circuitpy-mcu"
 
-LOGLEVEL = logging.INFO
+LOGLEVEL = logging.DEBUG
 
 def main():
 
@@ -23,9 +23,9 @@ def main():
 
     # set defaults for environment variables, (may be overridden by notehub)
     env = {
-        'temp-interval'         : 1, #minutes
-        'note-send-interval'    : 30, #minutes
-        'sample-times'       : ["02:00", "06:00", "10:00", "14:00", "18:00", "22:00"],
+        'sample_interval'         : 1, #minutes
+        'note-send-interval'      : 30, #minutes
+        # 'sample-times'       : ["02:00", "06:00", "10:00", "14:00", "18:00", "22:00", "14:16", "14:17", "14:18"],
 
         }
     
@@ -33,6 +33,14 @@ def main():
         '0x17' : 'BluesWireless Notecard', 
         '0x60' : 'Thermocouple Amp MCP9600',
         }
+    
+    notecard_config = {
+    'productUID' : 'dwt.ac.uk.portable_sensor',
+    # 'mode'       : 'continuous',
+    'mode'       : 'periodic',
+    'inbound'    : 4,
+    'outbound'   : 4,
+}
     
     next_sample = None
     next_sample_countdown = 0
@@ -66,31 +74,33 @@ def main():
                 next_sample_countdown = mcu.get_next_alarm(val)
                 next_sample = time.localtime(time.time() + next_sample_countdown)
                 mcu.log.info(f"next sample set for {next_sample.tm_hour:02d}:{next_sample.tm_min:02d}:00")
+
+
     
     mcu = Mcu_swan(loglevel=LOGLEVEL)
-    ncm = Notecard_manager(loghandler=mcu.loghandler, i2c=mcu.i2c, watchdog=120, loglevel=LOGLEVEL, synctime=False)
+    mcu.i2c_identify(i2c_dict)
+
+    ncm = Notecard_manager(loghandler=mcu.loghandler, i2c=mcu.i2c, watchdog=120, loglevel=LOGLEVEL, synctime=False, config_dict=notecard_config)
     mcu.led.value = True
     mcu.log.info(f'STARTING {__filename__} {__version__}')
 
-    mcu.i2c_identify(i2c_dict)
-    ncm.set_default_envs(env, sync=False)
 
+    ncm.set_default_envs(env, sync=False)
+    ncm.receive_environment(env)
     parse_environment()
+
     tc_channels = connect_thermocouple_channels()
 
-
-    # while True:
     mcu.log.info("hi info")
-    #     # mcu.log.warning("hi warning")
-    # cstatus = card.status(ncm.ncard)
-    # ncm.log.info(f"card.status={cstatus}")
 
+    # Sync with 'allow' to avoid penalty boxes
+    # mcu.log.info("hi forcing sync now")
+    # req = {"req": "hub.sync"}
+    # req['allow'] = True
+    # ncm.ncard.Transaction(req)
 
-    # rsp = hub.syncStatus(ncm.ncard)
-    # ncm.log.info(f"hub.syncStatus = {rsp}")
-
-    if ncm.receive_environment(env):
-        parse_environment()
+    rsp = hub.syncStatus(ncm.ncard)
+    ncm.log.debug(f"hub.syncStatus = {rsp}")
 
     for tc in tc_channels:
         i = tc_channels.index(tc)
@@ -98,13 +108,12 @@ def main():
 
     ncm.send_note(mcu.data, sync=False)
     print(mcu.data)
-    mcu.log.info("about to sleep for 60s")
 
-    ncm.sleep_mcu(seconds=60)
-
-        
-
-
+    next_sample_countdown = env['sample_interval'] * 60
+    mcu.log.info(f"about to sleep for {next_sample_countdown}s")
+    ncm.sleep_mcu(seconds=next_sample_countdown)
+    time.sleep(next_sample_countdown)
+    supervisor.reload()
 
 if __name__ == "__main__":
     try:
@@ -112,6 +121,6 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print('Code Stopped by Keyboard Interrupt')
 
-    # except Exception as e:
-    #     print(f'Code stopped by unhandled exception:')
-    #     reset(e)
+    except Exception as e:
+        print(f'Code stopped by unhandled exception:')
+        reset(e)
