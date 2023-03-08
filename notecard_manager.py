@@ -7,11 +7,11 @@ import traceback
 import notecard
 from notecard import hub, card, file, note, env
 
-from secrets import secrets, notecard_config
+from secrets import secrets
 
 
 class Notecard_manager():
-    def __init__(self, loghandler=None, i2c=None, debug=False, loglevel=logging.INFO, watchdog=False, synctime=True):
+    def __init__(self, loghandler=None, i2c=None, debug=False, loglevel=logging.INFO, watchdog=False, synctime=True, config_dict=None):
         try:
             # Set up logging
             self.log = logging.getLogger('notecard')
@@ -33,8 +33,6 @@ class Notecard_manager():
             # Real Time Clock in ESP32-S2 can be used to track timestamps
             self.rtc = rtc.RTC()
 
-            self.mode = "continuous"
-
             self.environment = {}
             self.env_stamp = 0 #posix time of last update from notehub
 
@@ -46,7 +44,9 @@ class Notecard_manager():
             self.connected = False
             self.last_sync = 0
 
-            self.check_config()
+            if config_dict:
+                self.check_config(config_dict)
+
             if synctime:
                 self.wait_for_time()
                 self.sync_time()
@@ -63,24 +63,24 @@ class Notecard_manager():
             self.handle_exception(e)
             self.log.error("Could not initialise Notecard")
 
-    def check_config(self):
+    def check_config(self, config_dict):
 
         config_ok = True 
-        self.log.info("Checking notecard settings match the notecard_config in secrets.py")
+        self.log.info("Checking if notecard settings match config_dict")
 
         hubget = hub.get(self.ncard)
 
         if "product" in hubget:
-            if hubget["product"] != notecard_config["productUID"]:
-                self.log.warning(f"Notecard productUID {hubget['product']} doesn't match {notecard_config['productUID']}")
+            if hubget["product"] != config_dict["productUID"]:
+                self.log.warning(f"Notecard productUID {hubget['product']} doesn't match {config_dict['productUID']}")
                 config_ok = False
         else:
             config_ok = False
 
         for setting in ['inbound', 'outbound', 'sync', 'mode']:
             if setting in hubget:
-                if hubget[setting] != notecard_config[setting]:
-                    self.log.warning(f"Notecard setting {hubget[setting]} doesn't match {notecard_config[setting]}")
+                if hubget[setting] != config_dict[setting]:
+                    self.log.warning(f"Notecard setting {hubget[setting]} doesn't match {config_dict[setting]}")
                     config_ok = False
 
         # wifi
@@ -95,7 +95,7 @@ class Notecard_manager():
         if config_ok == False:
             self.log.warning('Reconfiguring Notecard in 15s')
             time.sleep(15)
-            self.reconfigure()
+            self.reconfigure(config_dict)
         else:
             self.log.info('Config OK')
 
@@ -181,9 +181,11 @@ class Notecard_manager():
     def sync_time(self):
         try:
             rsp = card.time(self.ncard)
-            unixtime = rsp['time']
-            self.rtc.datetime = time.localtime(unixtime)
-            self.log.debug(f'RTC syncronised')
+            self.log.debug(f"time {rsp=}")
+            if 'time' in rsp:
+                unixtime = rsp['time']
+                self.rtc.datetime = time.localtime(unixtime)
+                self.log.debug(f'RTC syncronised')
         except Exception as e:
             self.handle_exception(e)
 
@@ -323,7 +325,7 @@ class Notecard_manager():
         if record.levelno >= logging.INFO:
             self.add_to_timestamped_log(text, ts)
 
-    def reconfigure(self):
+    def reconfigure(self, config_dict):
         try:
             # req = {"req": "card.restore"}
             # req["delete"] = False
@@ -331,11 +333,11 @@ class Notecard_manager():
             # self.ncard.Transaction(req)
 
             hub.set(self.ncard, 
-                product=notecard_config['productUID'],
-                mode=notecard_config['mode'],
-                sync=notecard_config['sync'],
-                outbound=notecard_config['outbound'],
-                inbound=notecard_config['inbound'])        
+                product=config_dict['productUID'],
+                mode=config_dict['mode'],
+                sync=config_dict['sync'],
+                outbound=config_dict['outbound'],
+                inbound=config_dict['inbound'])        
 
 
             # If it is a wifi notecard, set up SSID/Password
