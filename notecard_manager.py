@@ -328,6 +328,13 @@ class Notecard_manager():
         except Exception as e:
             print(f"Error logging to Notecard: {e}")
 
+    def set_sync_interval(self, inbound, outbound):
+        try:
+            hub.set(self.ncard, 
+                outbound=outbound,
+                inbound=inbound)    
+        except Exception as e:
+            self.handle_exception(e)
 
     def reconfigure(self, config_dict):
         try:
