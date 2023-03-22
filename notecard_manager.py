@@ -319,11 +319,15 @@ class Notecard_manager():
         ts = f'{t.tm_year}-{t.tm_mon:02}-{t.tm_mday:02} {t.tm_hour:02}:{t.tm_min:02}:{t.tm_sec:02}'
         text = f'{record.name} {record.levelname} {record.msg}'
 
-        if record.levelno >= logging.WARNING:
-            self.send_note({ts: text}, file="log.qo")
+        try:
+            if record.levelno >= logging.WARNING:
+                self.send_note({ts: text}, file="log.qo")
 
-        if record.levelno >= logging.INFO:
-            self.add_to_timestamped_log(text, ts)
+            if record.levelno >= logging.INFO:
+                self.add_to_timestamped_log(text, ts)
+        except Exception as e:
+            print(f"Error logging to Notecard: {e}")
+
 
     def reconfigure(self, config_dict):
         try:
@@ -358,16 +362,18 @@ class Notecard_manager():
             self.handle_exception(e)
 
     def sleep_mcu(self, seconds):
+        try:
+            req = {"req": "card.attn"}
+            req["mode"] = "disarm,-all"
+            self.ncard.Transaction(req)
 
-        req = {"req": "card.attn"}
-        req["mode"] = "disarm,-all"
-        self.ncard.Transaction(req)
-
-        req = {"cmd": "card.attn"}
-        req["mode"] = "sleep"
-        req["seconds"] = seconds
-        # req["payload"] = None
-        self.ncard.Command(req)
+            req = {"cmd": "card.attn"}
+            req["mode"] = "sleep"
+            req["seconds"] = seconds
+            # req["payload"] = None
+            self.ncard.Command(req)
+        except Exception as e:
+            self.handle_exception(e)
 
     def display(self, message):
         # Special log command with custom level, to request sending to attached display
@@ -376,12 +382,11 @@ class Notecard_manager():
     def handle_exception(self, e):
         cl = e.__class__
         if cl == OSError:
-            self.log.error(str(traceback.format_exception(None, e, e.__traceback__)))
-            self.log.warning("{cl} {e}, Notecard restarting, or i2c bus issue, too many pullups?")
+            print(f"{e}, Could not reach notecard\n   "
+                  +"Possible i2c bus issue e.g. too many pullups, featherPWR off, or notecard rebooting")
             time.sleep(1)
         else:
-            self.log.error(str(traceback.format_exception(None, e, e.__traceback__)))
+            self.log.error(traceback.format_exception(e)[0])
             self.log.critical(f"Unhandled Notecard Error, Raising")
             raise e
-
 

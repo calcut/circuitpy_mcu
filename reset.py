@@ -5,7 +5,7 @@ import time
 
 def reset(exception=None):
     if exception:
-        detail = traceback.format_exception(None, exception, exception.__traceback__)
+        detail = traceback.format_exception(exception)[0]
         print(detail)
         try:
             with open('log_exception.txt', 'a') as f:
