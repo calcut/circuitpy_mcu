@@ -363,7 +363,7 @@ class Notecard_manager():
         req["mode"] = "disarm,-all"
         self.ncard.Transaction(req)
 
-        req = {"req": "card.attn"}
+        req = {"cmd": "card.attn"}
         req["mode"] = "sleep"
         req["seconds"] = seconds
         # req["payload"] = None
