@@ -7,9 +7,6 @@ import adafruit_mcp9600
 import supervisor
 from notecard import hub, card, file, note, env
 
-
-
-
 __version__ = "0.1.0"
 __filename__ = "datalogger_battery.py"
 __repo__ = "https://github.com/calcut/circuitpy-mcu"
@@ -24,9 +21,7 @@ def main():
     # set defaults for environment variables, (may be overridden by notehub)
     env = {
         'sample_interval'         : 1, #minutes
-        'note-send-interval'      : 30, #minutes
-        # 'sample-times'       : ["02:00", "06:00", "10:00", "14:00", "18:00", "22:00", "14:16", "14:17", "14:18"],
-
+        'note-send-interval'      : 5, #minutes
         }
     
     i2c_dict = {
@@ -36,10 +31,9 @@ def main():
     
     notecard_config = {
     'productUID' : 'dwt.ac.uk.portable_sensor',
-    # 'mode'       : 'continuous',
     'mode'       : 'periodic',
-    'inbound'    : 4,
-    'outbound'   : 4,
+    'inbound'    : env['note-send-interval'],
+    'outbound'   : env['note-send-interval'],
 }
     
     next_sample = None
@@ -61,22 +55,7 @@ def main():
 
         return tc_channels
     
-    def parse_environment():
 
-        nonlocal next_sample
-        nonlocal next_sample_countdown
-        nonlocal timer_sample
-
-        for key, val in env.items():
-
-            if key == 'sample-times':
-                timer_sample = time.monotonic()
-                next_sample_countdown = mcu.get_next_alarm(val)
-                next_sample = time.localtime(time.time() + next_sample_countdown)
-                mcu.log.info(f"next sample set for {next_sample.tm_hour:02d}:{next_sample.tm_min:02d}:00")
-
-
-    
     mcu = Mcu_swan(loglevel=LOGLEVEL)
     mcu.i2c_identify(i2c_dict)
 
@@ -87,21 +66,9 @@ def main():
 
     ncm.set_default_envs(env, sync=False)
     ncm.receive_environment(env)
-    parse_environment()
+    ncm.set_sync_interval(inbound=env['note-send-interval'], outbound=env['note-send-interval'])
 
     tc_channels = connect_thermocouple_channels()
-
-    mcu.log.info("hi info")
-
-    # Sync with 'allow' to avoid penalty boxes
-    # mcu.log.info("hi forcing sync now")
-    # req = {"req": "hub.sync"}
-    # req['allow'] = True
-    # ncm.ncard.Transaction(req)
-
-    rsp = hub.syncStatus(ncm.ncard)
-    ncm.log.debug(f"hub.syncStatus = {rsp}")
-
     for tc in tc_channels:
         i = tc_channels.index(tc)
         mcu.data[f'tc{i+1}'] = tc.temperature
