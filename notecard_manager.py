@@ -58,6 +58,10 @@ class Notecard_manager():
                 # ATTN should be connected to e.g. Feather_en using switch on notecarrier.
                 # Currently not working with notecard FW 3.x.x
                 # https://discuss.blues.io/t/watchdog-not-triggering/1067/5
+                req = {"req": "card.attn"}
+                req["mode"] = "disarm,-all"
+                self.ncard.Transaction(req)
+                
                 card.attn(self.ncard, mode="watchdog", seconds=watchdog)
         except Exception as e:
             self.handle_exception(e)
