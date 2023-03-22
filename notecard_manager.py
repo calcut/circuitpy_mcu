@@ -367,7 +367,7 @@ class Notecard_manager():
         req["mode"] = "sleep"
         req["seconds"] = seconds
         # req["payload"] = None
-        self.ncard.Transaction(req)
+        self.ncard.Command(req)
 
     def display(self, message):
         # Special log command with custom level, to request sending to attached display
