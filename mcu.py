@@ -250,8 +250,9 @@ class Mcu_swan():
 
 class McuLogHandler(logging.Handler):
 
-    def __init__(self, mcu_device):
+    def __init__(self, mcu_device=None, uart=None):
         self.device = mcu_device
+        self.uart=uart
         self.aux_log_function = None
         self.level = logging.NOTSET
 
@@ -259,7 +260,8 @@ class McuLogHandler(logging.Handler):
 
         if record.levelno == 25:
             # Special handling for messages to be displayed on an attached display
-            self.device.display_text(record.msg)
+            if self.device is not None:
+                self.device.display_text(record.msg)
             return
 
         if record.levelno == logging.INFO:
@@ -271,6 +273,10 @@ class McuLogHandler(logging.Handler):
 
         # Print to Serial
         print(text)
+
+        # Print to UART
+        if self.uart is not None:
+            self.uart.write(bytearray(f"{text}\n"))
 
         if self.aux_log_function is not None:
             # to call an auxilliary log output function (e.g. Send via Notecard)
