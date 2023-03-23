@@ -82,7 +82,7 @@ class Notecard_manager():
             config_ok = False
 
         for setting in ['inbound', 'outbound', 'sync', 'mode']:
-            if setting in hubget:
+            if (setting in hubget) and (setting in config_dict):
                 if hubget[setting] != config_dict[setting]:
                     self.log.warning(f"Notecard setting {hubget[setting]} doesn't match {config_dict[setting]}")
                     config_ok = False
