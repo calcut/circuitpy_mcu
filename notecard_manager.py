@@ -234,6 +234,8 @@ class Notecard_manager():
                                 if dtype == list:
                                     if (val[0] == "[") and (val[-1] == "]"):
                                         typed_val = eval(val)
+                                    elif dtype == bool:
+                                        typed_val = (val == 'True')
                                     else:
                                         print(f"Couldn't parse {val}, expected a list")
                                 else:
