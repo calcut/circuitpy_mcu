@@ -229,6 +229,8 @@ class Notecard_manager():
                                         typed_val = eval(val)
                                     else:
                                         print(f"Couldn't parse {val}, expected a list")
+                                elif dtype == bool:
+                                    typed_val = (val == 'True')
                                 else:
                                     typed_val = dtype(val)
 
