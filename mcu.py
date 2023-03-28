@@ -208,7 +208,6 @@ class Mcu_swan():
         while True:
             line = None
             while not line:
-                self.watchdog_feed()
                 line = self.read_serial()
 
             if valid_inputs:
