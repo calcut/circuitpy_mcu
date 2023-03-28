@@ -188,7 +188,8 @@ class Notecard_manager():
             self.log.debug(f"time {rsp=}")
             if 'time' in rsp:
                 unixtime = rsp['time']
-                self.rtc.datetime = time.localtime(unixtime)
+                minutes = rsp['minutes'] #minutes east of GMT, used to get localtime
+                self.rtc.datetime = time.localtime(unixtime + minutes*60)
                 self.log.debug(f'RTC syncronised')
         except Exception as e:
             self.handle_exception(e)
