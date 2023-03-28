@@ -54,6 +54,7 @@ class Mcu_swan():
             self.uart = None
 
         self.i2c = busio.I2C(board.SCL, board.SDA, frequency=i2c_freq)
+        self.i2c2 = None
 
         self.led = digitalio.DigitalInOut(board.LED)
         self.led.direction = digitalio.Direction.OUTPUT
@@ -96,6 +97,13 @@ class Mcu_swan():
 
         i2c.unlock()
         return lookup_result
+    
+    def enable_i2c2(self, sda=board.ext.SDA2, scl=board.ext.SCL2, frequency=100000):
+        """
+        A 2nd i2c bus is helpful to avoid issues with too many devices on a single bus
+        e.g. Notecard i2c comms will fail if there are too many pull-up resistors
+        """
+        self.i2c2 = busio.I2C(sda=sda, scl=scl, frequency=frequency)
 
 
     def get_timestamp(self):
@@ -209,7 +217,7 @@ class Mcu_swan():
 
         # formats an exception to print to log as an error,
         # includues the traceback (to show code line number)
-        self.log.error(traceback.format_exception(None, e, e.__traceback__))
+        self.log.error(traceback.format_exception(e)[0])
         self.log.warning(f'No handler for this exception in mcu.handle_exception()')
         # raise
 
