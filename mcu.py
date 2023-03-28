@@ -98,11 +98,18 @@ class Mcu_swan():
         i2c.unlock()
         return lookup_result
     
-    def enable_i2c2(self, sda=board.ext.SDA2, scl=board.ext.SCL2, frequency=100000):
+    def enable_i2c2(self, sda=board.ext.SDA3, scl=board.ext.SCL3, frequency=100000, d5d6=True):
         """
         A 2nd i2c bus is helpful to avoid issues with too many devices on a single bus
         e.g. Notecard i2c comms will fail if there are too many pull-up resistors
         """
+        if d5d6:
+            # board mod to wire SDA3 to board.D6 and SCL3 to board.D5 (I2C3 pins are easier to access)
+            # Useful because STM32L4R5 doesn't support I2C as alternate funciton on those pins.
+            d5 = digitalio.DigitalInOut(board.D5)
+            d6 = digitalio.DigitalInOut(board.D6)
+            d5.switch_to_input(pull=None)
+            d6.switch_to_input(pull=None)
         self.i2c2 = busio.I2C(sda=sda, scl=scl, frequency=frequency)
 
 
