@@ -63,6 +63,15 @@ class Notecard_manager():
                 self.ncard.Transaction(req)
                 
                 card.attn(self.ncard, mode="watchdog", seconds=watchdog)
+
+            #Enable Outboard firmware update 
+            req = {"req":"card.dfu"}
+            req["name"] = "stm32"
+            req["on"] = True
+            rsp = self.ncard.Transaction(req)
+            self.log.info(f'enabled outboard DFU for {rsp}')
+
+            
         except Exception as e:
             self.handle_exception(e)
             self.log.error("Could not initialise Notecard")
