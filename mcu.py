@@ -53,6 +53,8 @@ class Mcu_swan():
         else:
             self.uart = None
 
+        self.uart2 = None
+
         self.i2c = busio.I2C(board.SCL, board.SDA, frequency=i2c_freq)
         self.i2c2 = None
 
@@ -111,6 +113,19 @@ class Mcu_swan():
             d5.switch_to_input(pull=None)
             d6.switch_to_input(pull=None)
         self.i2c2 = busio.I2C(sda=sda, scl=scl, frequency=frequency)
+
+    def enable_uart2(self, tx=board.ext.TX3, rx=board.ext.RX3, baud=57600, d10d11=True):
+            
+            if d10d11:
+                # board mod to wire TX3 to board.D10 and RX3 to board.D11
+                # Useful because STM32L4R5 doesn't support UART as alternate funciton on those pins.
+                # Basically a hack to leave board.TX and board.RX free to dedicate to DFU
+                d10 = digitalio.DigitalInOut(board.D10)
+                d11 = digitalio.DigitalInOut(board.D11)
+                d10.switch_to_input(pull=None)
+                d11.switch_to_input(pull=None)             
+            self.uart2 = busio.UART(tx, rx, baudrate=baud)
+
 
 
     def get_timestamp(self):
