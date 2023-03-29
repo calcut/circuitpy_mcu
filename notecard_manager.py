@@ -7,9 +7,6 @@ import traceback
 import notecard
 from notecard import hub, card, file, note, env
 
-from secrets import secrets
-
-
 class Notecard_manager():
     def __init__(self, loghandler=None, i2c=None, debug=False, loglevel=logging.INFO, watchdog=False, synctime=True, config_dict=None):
         try:
@@ -44,8 +41,8 @@ class Notecard_manager():
             self.connected = False
             self.last_sync = 0
 
-            if config_dict:
-                self.check_config(config_dict)
+            self.config_dict = config_dict
+            self.check_config()
 
             if synctime:
                 self.wait_for_time()
@@ -76,39 +73,33 @@ class Notecard_manager():
             self.handle_exception(e)
             self.log.error("Could not initialise Notecard")
 
-    def check_config(self, config_dict):
-
+    def check_config(self):
+        if self.config_dict is None:
+            self.log.warning("no config dict provided to check against")
+            return
+        
         config_ok = True 
         self.log.info("Checking if notecard settings match config_dict")
 
         hubget = hub.get(self.ncard)
 
         if "product" in hubget:
-            if hubget["product"] != config_dict["productUID"]:
-                self.log.warning(f"Notecard productUID {hubget['product']} doesn't match {config_dict['productUID']}")
+            if hubget["product"] != self.config_dict["productUID"]:
+                self.log.warning(f"Notecard productUID {hubget['product']} doesn't match {self.config_dict['productUID']}")
                 config_ok = False
         else:
             config_ok = False
 
         for setting in ['inbound', 'outbound', 'sync', 'mode']:
-            if (setting in hubget) and (setting in config_dict):
-                if hubget[setting] != config_dict[setting]:
-                    self.log.warning(f"Notecard setting {hubget[setting]} doesn't match {config_dict[setting]}")
+            if (setting in hubget) and (setting in self.config_dict):
+                if hubget[setting] != self.config_dict[setting]:
+                    self.log.warning(f"Notecard setting {hubget[setting]} doesn't match {self.config_dict[setting]}")
                     config_ok = False
-
-        # wifi
-        req = {"req": "card.wifi"}
-        cardwifi = self.ncard.Transaction(req)
-
-        if "ssid" in cardwifi:
-            if cardwifi["ssid"] != secrets["ssid"]:
-                self.log.warning(f"Notecard SSID {cardwifi['ssid']} doesn't match {secrets['ssid']}")
-                config_ok = False
                 
         if config_ok == False:
             self.log.warning('Reconfiguring Notecard in 15s')
             time.sleep(15)
-            self.reconfigure(config_dict)
+            self.reconfigure(self.config_dict)
         else:
             self.log.info('Config OK')
 
@@ -158,9 +149,11 @@ class Notecard_manager():
                     self.log.debug(f"no sync in {t_since_sync}s")
             if nosync_timeout:        
                 if t_since_sync >= nosync_timeout:
-                    self.log.critical(f"no sync in {t_since_sync}s, timed out, reconfiguring notecard. Trace = {debug_trace}")
-                    # microcontroller.reset()
-                    self.reconfigure()
+                    self.log.critical(f"no sync in {t_since_sync}s, timed out, Trace = {debug_trace}")
+                    if self.config_dict is not None:
+                        self.log.critical(f"Reconfiguring notecard")
+                        # microcontroller.reset()
+                        self.reconfigure(self.config_dict)
          
         except Exception as e:
             self.handle_exception(e)
@@ -365,17 +358,6 @@ class Notecard_manager():
                 sync=config_dict['sync'],
                 outbound=config_dict['outbound'],
                 inbound=config_dict['inbound'])        
-
-
-            # If it is a wifi notecard, set up SSID/Password
-            req = {"req": "card.version"}
-            cardversion = self.ncard.Transaction(req)
-            if 'sku' in cardversion:
-                if cardversion['sku'] == "NOTE-WIFI":
-                    req = {"req": "card.wifi"}
-                    req["ssid"] = secrets['ssid']
-                    req["password"] = secrets['password']
-                    rsp = self.ncard.Transaction(req)
 
             req = {"req": "card.restart"}
             self.ncard.Transaction(req)
