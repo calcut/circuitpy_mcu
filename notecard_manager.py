@@ -186,9 +186,12 @@ class Notecard_manager():
     def sync_time(self):
         try:
             rsp = card.time(self.ncard)
-            unixtime = rsp['time']
-            self.rtc.datetime = time.localtime(unixtime)
-            self.log.debug(f'RTC syncronised')
+            self.log.debug(f"time {rsp=}")
+            if 'time' in rsp:
+                unixtime = rsp['time']
+                minutes = rsp['minutes'] #minutes east of GMT, used to get localtime
+                self.rtc.datetime = time.localtime(unixtime + minutes*60)
+                self.log.debug(f'RTC syncronised')
         except Exception as e:
             self.handle_exception(e)
 
