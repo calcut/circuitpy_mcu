@@ -26,7 +26,7 @@ except ImportError as e:
     print(str(e))
 
 
-__version__ = "v3.1.4"
+__version__ = "v3.2.0"
 __repo__ = "https://github.com/calcut/circuitpy-mcu"
 
 class Mcu():
@@ -147,8 +147,9 @@ class Mcu():
         return lookup_result
 
 
-    def get_timestamp(self):
+    def get_timestamp(self, utc_offset_hours=0):
         t = self.rtc.datetime
+        t = time.localtime(time.mktime(t)+utc_offset_hours*60*60)
         string = f'{t.tm_year}-{t.tm_mon:02}-{t.tm_mday:02} {t.tm_hour:02}:{t.tm_min:02}:{t.tm_sec:02}'
         return string
 
