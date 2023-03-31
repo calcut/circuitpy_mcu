@@ -270,11 +270,13 @@ class Mcu():
         self.log.warning(f'No handler for this exception in mcu.handle_exception()')
         # raise
 
-    def get_next_alarm(self, alarm_list):
+    def get_next_alarm(self, alarm_list, utc_offset_hours=0):
         """
         Returns number of seconds until the next alarm in a list,
         e.g. alarm_list = ["10:00", "11:00", "14:53"]
         Assumes alarms repeat daily
+
+        can provide UTC offset hours, to specify how many hours ahead of UTC the alarm list is
         """
 
         now = time.localtime()
@@ -287,12 +289,11 @@ class Mcu():
         for t in alarm_list:
             sp = t.split(":")
 
-            hour = int(sp[0])
+            hour = int(sp[0]) - utc_offset_hours
             mins = int(sp[1])
 
-            list_time = time.struct_time([year,month,day,hour,mins, 0,0,0,0])
-            posix_list_time = time.mktime(list_time)
-            seconds_to_alarm = posix_list_time - time.time()
+            alarm_time = time.struct_time([year,month,day,hour,mins, 0,0,0,0])
+            seconds_to_alarm = time.mktime(alarm_time) - time.mktime(now)
 
             # roll over to the next day
             if seconds_to_alarm <=0:
