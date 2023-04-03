@@ -26,7 +26,7 @@ except ImportError as e:
     print(str(e))
 
 
-__version__ = "v3.2.0"
+__version__ = "v3.2.1"
 __repo__ = "https://github.com/calcut/circuitpy-mcu"
 
 class Mcu():
