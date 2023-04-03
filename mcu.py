@@ -290,11 +290,12 @@ class Mcu():
         for t in alarm_list:
             sp = t.split(":")
 
-            hour = int(sp[0]) - utc_offset_hours
+            hour = int(sp[0])
             mins = int(sp[1])
 
             alarm_time = time.struct_time([year,month,day,hour,mins, 0,0,0,0])
-            seconds_to_alarm = time.mktime(alarm_time) - time.mktime(now)
+            posix_alarm_time = time.mktime(alarm_time) - utc_offset_hours*60*60
+            seconds_to_alarm =  posix_alarm_time - time.mktime(now)
 
             # roll over to the next day
             if seconds_to_alarm <=0:
