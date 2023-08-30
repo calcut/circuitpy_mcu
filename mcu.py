@@ -81,9 +81,9 @@ class Mcu():
         self.pixel.brightness = pixel_brightness
         self.pixel[0] = self.pixel.GREEN
 
-        self.led = digitalio.DigitalInOut(board.LED)
-        self.led.direction = digitalio.Direction.OUTPUT
-        self.led.value = False
+        # self.led = digitalio.DigitalInOut(board.LED)
+        # self.led.direction = digitalio.Direction.OUTPUT
+        # self.led.value = False
 
     def service(self, serial_parser=None):
         self.watchdog_feed()
