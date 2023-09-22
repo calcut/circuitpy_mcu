@@ -1,40 +1,42 @@
 {
     "2b41": {
         "description": "Test System",
-        "ota1a": {
-            "url": "https://github.com/calcut/circuitpy_mcu/raw/md5-ota/mcu.py",
-            "md5": "400094bf9e7f22512548c2fc5ca617be",
-            "destination": "/circuitpy_mcu/mcu.py"
-        },
-        "ota1b": {
-            "url": "https://github.com/calcut/circuitpy_mcu/raw/md5-ota/ota_bootloader.py",
-            "md5": "a6e1ee64c2ecb2b5e89d5a70861b2ebe",
-            "destination": "/circuitpy_mcu/ota_bootloader.py"
-        },
-        "ota1c": {
-            "url": "https://github.com/calcut/circuitpy_mcu/raw/md5-ota/DFRobot_PH.py",
-            "md5": "266c9e40a08cbe7f0195d1dd358a7dc5",
-            "destination": "/circuitpy_mcu/DFRobot_PH.py"
-        },
-        "ota2": {
-            "url": "https://github.com/calcut/circuitpy_mcu/raw/main/notecard_manager.py",
-            "md5": "38022392d7c0f3956d01be543b2f4066",
-            "destination": "/circuitpy_mcu/notecard_manager.py"
-        },
-        "ota3": {
-            "url": "https://github.com/calcut/circuitpy_mcu/raw/main/simpletest_notecard.py",
-            "md5": "d360f74a7ff3b218c64d0017b78b661f",
-            "destination": "/circuitpy_mcu/simpletest_notecard.py"
-        },
-        "ota4": {
-            "url": "https://github.com/adafruit/Adafruit_CircuitPython_Motor/raw/3.4.0/adafruit_motor/motor.py",
-            "md5": "ed40e8e2c2cbcbb48783acd1656b20b4",
-            "destination": "/lib/adafruit_motor/motor.py"
-        },
-        "ota5": {
-            "url": "https://github.com/adafruit/Adafruit_CircuitPython_MotorKit/raw/1.6.6/adafruit_motorkit.py",
-            "md5": "97aea4810b3422e53443740c73466f63",
-            "destination": "/lib/adafruit_motorkit.py"
-        }
+        "ota_files": [
+            {
+                "url": "https://github.com/calcut/circuitpy_mcu/raw/md5-ota/mcu.py",
+                "md5": "400094bf9e7f22512548c2fc5ca617be",
+                "destination": "/circuitpy_mcu/mcu.py"
+            },
+            {
+                "url": "https://github.com/calcut/circuitpy_mcu/raw/md5-ota/ota_bootloader.py",
+                "md5": "a6e1ee64c2ecb2b5e89d5a70861b2ebe",
+                "destination": "/circuitpy_mcu/ota_bootloader.py"
+            },
+            {
+                "url": "https://github.com/calcut/circuitpy_mcu/raw/md5-ota/DFRobot_PH.py",
+                "md5": "266c9e40a08cbe7f0195d1dd358a7dc5",
+                "destination": "/circuitpy_mcu/DFRobot_PH.py"
+            },
+            {
+                "url": "https://github.com/calcut/circuitpy_mcu/raw/main/notecard_manager.py",
+                "md5": "38022392d7c0f3956d01be543b2f4066",
+                "destination": "/circuitpy_mcu/notecard_manager.py"
+            },
+            {
+                "url": "https://github.com/calcut/circuitpy_mcu/raw/main/simpletest_notecard.py",
+                "md5": "d360f74a7ff3b218c64d0017b78b661f",
+                "destination": "/circuitpy_mcu/simpletest_notecard.py"
+            },
+            {
+                "url": "https://github.com/adafruit/Adafruit_CircuitPython_Motor/raw/3.4.0/adafruit_motor/motor.py",
+                "md5": "ed40e8e2c2cbcbb48783acd1656b20b4",
+                "destination": "/lib/adafruit_motor/motor.py"
+            },
+            {
+                "url": "https://github.com/adafruit/Adafruit_CircuitPython_MotorKit/raw/1.6.6/adafruit_motorkit.py",
+                "md5": "97aea4810b3422e53443740c73466f63",
+                "destination": "/lib/adafruit_motorkit.py"
+            }
+        ]
     }
 }
