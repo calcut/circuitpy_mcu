@@ -1,10 +1,20 @@
 {
     "2b41": {
         "description": "Test System",
-        "ota1": {
-            "url": "https://github.com/calcut/circuitpy_mcu/raw/main/mcu.py",
+        "ota1a": {
+            "url": "https://github.com/calcut/circuitpy_mcu/raw/md5-ota/mcu.py",
             "md5": "e431baf6279da6de409dd8430b46d211",
             "destination": "/circuitpy_mcu/mcu.py"
+        },
+        "ota1b": {
+            "url": "https://github.com/calcut/circuitpy_mcu/raw/md5-ota/ota_bootloader.py",
+            "md5": "016206175cff10005f143291e2675805",
+            "destination": "/circuitpy_mcu/ota_bootloader.py"
+        },
+        "ota1c": {
+            "url": "https://github.com/calcut/circuitpy_mcu/raw/md5-ota/DFRobot_PH.py",
+            "md5": "016206175cff10005f143291e2675805",
+            "destination": "/circuitpy_mcu/DFRobot_PH.py"
         },
         "ota2": {
             "url": "https://github.com/calcut/circuitpy_mcu/raw/main/notecard_manager.py",

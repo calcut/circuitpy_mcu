@@ -245,11 +245,15 @@ class Bootloader():
                 if k.startswith('ota'):
                     md5_ref = ota_list[k]['md5']
                     dest = ota_list[k]['destination']
-                    with open(dest, 'rb') as f:
-                        file = f.read()
-                    md5 = hashlib.md5(file)
-                    if (md5_ref != md5.hexdigest()):
-                        print(f"MD5 mismatch for {dest}, adding to update list")
+                    try:
+                        with open(dest, 'rb') as f:
+                            file = f.read()
+                        md5 = hashlib.md5(file)
+                        if (md5_ref != md5.hexdigest()):
+                            print(f"MD5 mismatch for {dest}, adding to update list")
+                            update_keys.append(k)
+                    except Exception as e:
+                        print(f"Could not open {dest}, adding to update list")
                         update_keys.append(k)
 
             if update_keys == []:
