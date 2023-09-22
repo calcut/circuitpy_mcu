@@ -1,5 +1,6 @@
 # from circuitpy_mcu.mcu import Mcu
 import adafruit_requests
+import adafruit_hashlib as hashlib
 import ssl
 import socketpool
 import wifi
@@ -236,20 +237,80 @@ class Bootloader():
             ota_list = response.json()[id]
             print(ota_list)
 
-            for path, item_url in ota_list.items():
-                microcontroller.watchdog.feed()
-                if self.led:
-                    self.led.value = not self.led.value
-                self.mkdir_parents(path)
-                print(f'saving {item_url} to {path}')
-                url_list = item_url.split('/')
-                self.display_text(f'{url_list[-1]}', row=0, clear=True)
-                self.display_text(f'{url_list[-2]}', row=1, clear=False)
-                self.display_text(f'{url_list[-3]}', row=2, clear=False)
-                time.sleep(0.5)
-                file = self.requests.get(item_url).content
-                with open(path, 'w') as f:
+            update_keys = []
+
+            for k in ota_list.keys():
+                if k.startswith('ota'):
+                    md5_ref = ota_list[k]['md5']
+                    dest = ota_list[k]['destination']
+                    with open(dest, 'rb') as f:
+                        file = f.read()
+                    md5 = hashlib.md5(file)
+                    if (md5_ref != md5.hexdigest()):
+                        print(f"MD5 mismatch for {dest}, adding to update list")
+                        update_keys.append(k)
+
+            if update_keys == []:
+                self.display_text(f"No files need updating", row=0, clear=True)
+            else:
+                self.display_text(f"Files need updating", row=0, clear=True)
+                self.display_text(f"{update_keys}", row=1, clear=False)
+            
+            #  Download the files to temporary locations
+            for k in update_keys:
+                url = ota_list[k]['url']
+                dest = ota_list[k]['destination']
+                dest_temp = dest+'.ota_temp'
+                file = self.requests.get(url).content
+                with open(dest_temp, 'wb') as f:
                     f.write(file)
+
+            # Confirm MD5s match for the newly downloaded files
+            for k in update_keys:
+                md5_ref = ota_list[k]['md5']
+                dest = ota_list[k]['destination']
+                dest_temp = dest+'.ota_temp'
+                with open(dest_temp, 'rb') as f:
+                    file = f.read()
+                md5 = hashlib.md5(file)
+                if (md5_ref == md5.hexdigest()):
+                    print(f"MD5 match for {dest}")
+                else: 
+                    print(f"MD5 mismatch for {dest}")
+                    raise Exception(f"MD5 mismatch for {dest}")
+                # exception to reboot normally with original files
+
+            # Overwrite the original files with the OTA temp files
+            for k in update_keys:
+                url = ota_list[k]['url']
+                dest = ota_list[k]['destination']
+                dest_temp = dest+'.ota_temp'
+                with open(dest_temp, 'rb') as f:
+                    file = f.read()
+                with open(dest, 'wb') as f:
+                    f.write(file)
+                    print(f"updated {dest}")
+                    url_list = url.split('/')
+                    self.display_text(f'{url_list[-1]}', row=0, clear=True)
+                    self.display_text(f'{url_list[-2]}', row=1, clear=False)
+                    self.display_text(f'{url_list[-3]}', row=2, clear=False)
+
+                os.remove(dest_temp)
+
+            # for path, item_url in ota_list.items():
+            #     microcontroller.watchdog.feed()
+            #     if self.led:
+            #         self.led.value = not self.led.value
+            #     self.mkdir_parents(path)
+            #     print(f'saving {item_url} to {path}')
+            #     url_list = item_url.split('/')
+            #     self.display_text(f'{url_list[-1]}', row=0, clear=True)
+            #     self.display_text(f'{url_list[-2]}', row=1, clear=False)
+            #     self.display_text(f'{url_list[-3]}', row=2, clear=False)
+            #     time.sleep(0.5)
+            #     file = self.requests.get(item_url).content
+            #     with open(path, 'w') as f:
+            #         f.write(file)
 
             self.display_text(f'OTA Success', row=0, clear=True)
             time.sleep(1)

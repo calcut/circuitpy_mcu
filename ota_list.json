@@ -1,0 +1,20 @@
+{
+    "2b41": {
+        "description": "Test System",
+        "ota1": {
+            "url": "https://raw.githubusercontent.com/calcut/circuitpy_mcu/main/mcu.py",
+            "md5": "e431baf6279da6de409dd8430b46d211",
+            "destination": "/circuitpy_mcu/mcu.py"
+        },
+        "ota2": {
+            "url": "https://raw.githubusercontent.com/calcut/circuitpy_mcu/main/notecard_manager.py",
+            "md5": "38022392d7c0f3956d01be543b2f4066",
+            "destination": "/circuitpy_mcu/notecard_manager.py"
+        },
+        "ota3": {
+            "url": "https://raw.githubusercontent.com/calcut/circuitpy_mcu/main/simpletest_notecard.py",
+            "md5": "d360f74a7ff3b218c64d0017b78b661f",
+            "destination": "/circuitpy_mcu/simpletest_notecard.py"
+        }
+    }
+}
