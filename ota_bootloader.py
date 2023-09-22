@@ -232,13 +232,15 @@ class Bootloader():
             self.wifi_connect()
 
             print(f'trying to fetch ota files defined in {url}, with id={id}')
-            self.display_text(f'ota_list.py id={id}')
+            url_list = url.split('/')
+            self.display_text(f'Downloading:', row=0, clear=True)
+            self.display_text(f'{url_list[-1]}', row=1, clear=False)
+            self.display_text(f'{url_list[-2]}', row=2, clear=False)
+            self.display_text(f'{url_list[-3]}', row=3, clear=False)
             response = self.requests.get(url)
             ota_list = response.json()[id]
-            print(ota_list)
 
             update_keys = []
-
             for k in ota_list.keys():
                 if k.startswith('ota'):
                     md5_ref = ota_list[k]['md5']
@@ -251,16 +253,24 @@ class Bootloader():
                         update_keys.append(k)
 
             if update_keys == []:
-                self.display_text(f"No files need updating", row=0, clear=True)
+                print(f"No files need update")
+                self.display_text(f'No files need update', row=0, clear=True)
+                time.sleep(1)
+                self.display_text(f'Starting...', row=0, clear=True)
+                return True
             else:
-                self.display_text(f"Files need updating", row=0, clear=True)
-                self.display_text(f"{update_keys}", row=1, clear=False)
+                print(f"{len(update_keys)} Files need updating")
             
             #  Download the files to temporary locations
             for k in update_keys:
                 url = ota_list[k]['url']
                 dest = ota_list[k]['destination']
                 dest_temp = dest+'.ota_temp'
+                url_list = url.split('/')
+                self.display_text(f'Downloading:', row=0, clear=True)
+                self.display_text(f'{url_list[-1]}', row=1, clear=False)
+                self.display_text(f'{url_list[-2]}', row=2, clear=False)
+                self.display_text(f'{url_list[-3]}', row=3, clear=False)
                 file = self.requests.get(url).content
                 with open(dest_temp, 'wb') as f:
                     f.write(file)
@@ -277,6 +287,8 @@ class Bootloader():
                     print(f"MD5 match for {dest}")
                 else: 
                     print(f"MD5 mismatch for {dest}")
+                    self.display_text(f'OTA MD5 Error', row=0, clear=True)
+                    self.display_text(f'{dest}', row=1, clear=True)
                     raise Exception(f"MD5 mismatch for {dest}")
                 # exception to reboot normally with original files
 
@@ -290,27 +302,8 @@ class Bootloader():
                 with open(dest, 'wb') as f:
                     f.write(file)
                     print(f"updated {dest}")
-                    url_list = url.split('/')
-                    self.display_text(f'{url_list[-1]}', row=0, clear=True)
-                    self.display_text(f'{url_list[-2]}', row=1, clear=False)
-                    self.display_text(f'{url_list[-3]}', row=2, clear=False)
 
                 os.remove(dest_temp)
-
-            # for path, item_url in ota_list.items():
-            #     microcontroller.watchdog.feed()
-            #     if self.led:
-            #         self.led.value = not self.led.value
-            #     self.mkdir_parents(path)
-            #     print(f'saving {item_url} to {path}')
-            #     url_list = item_url.split('/')
-            #     self.display_text(f'{url_list[-1]}', row=0, clear=True)
-            #     self.display_text(f'{url_list[-2]}', row=1, clear=False)
-            #     self.display_text(f'{url_list[-3]}', row=2, clear=False)
-            #     time.sleep(0.5)
-            #     file = self.requests.get(item_url).content
-            #     with open(path, 'w') as f:
-            #         f.write(file)
 
             self.display_text(f'OTA Success', row=0, clear=True)
             time.sleep(1)
