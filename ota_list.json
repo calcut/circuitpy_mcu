@@ -3,17 +3,17 @@
         "description": "Test System",
         "ota1a": {
             "url": "https://github.com/calcut/circuitpy_mcu/raw/md5-ota/mcu.py",
-            "md5": "e431baf6279da6de409dd8430b46d211",
+            "md5": "400094bf9e7f22512548c2fc5ca617be",
             "destination": "/circuitpy_mcu/mcu.py"
         },
         "ota1b": {
             "url": "https://github.com/calcut/circuitpy_mcu/raw/md5-ota/ota_bootloader.py",
-            "md5": "016206175cff10005f143291e2675805",
+            "md5": "a6e1ee64c2ecb2b5e89d5a70861b2ebe",
             "destination": "/circuitpy_mcu/ota_bootloader.py"
         },
         "ota1c": {
             "url": "https://github.com/calcut/circuitpy_mcu/raw/md5-ota/DFRobot_PH.py",
-            "md5": "016206175cff10005f143291e2675805",
+            "md5": "266c9e40a08cbe7f0195d1dd358a7dc5",
             "destination": "/circuitpy_mcu/DFRobot_PH.py"
         },
         "ota2": {
