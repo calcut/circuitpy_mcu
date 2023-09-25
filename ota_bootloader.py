@@ -237,8 +237,9 @@ class Bootloader():
             self.display_text(f'{url_list[-1]}', row=1, clear=False)
             self.display_text(f'{url_list[-2]}', row=2, clear=False)
             self.display_text(f'{url_list[-3]}', row=3, clear=False)
+            print(f'Downloading {url}')
             response = self.requests.get(url)
-            ota_list = response.json()[id]['ota_files']
+            ota_list = response.json()[id]['ota_files']+response.json()['common']['ota_files']
             
             update_indices = []
 
@@ -278,6 +279,7 @@ class Bootloader():
                 self.display_text(f'{url_list[-1]}', row=1, clear=False)
                 self.display_text(f'{url_list[-2]}', row=2, clear=False)
                 self.display_text(f'{url_list[-3]}', row=3, clear=False)
+                print(f'Downloading {url}')
                 file = self.requests.get(url).content
                 self.mkdir_parents(dest_temp)
                 with open(dest_temp, 'wb') as f:

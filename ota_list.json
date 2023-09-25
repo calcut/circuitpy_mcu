@@ -6,6 +6,16 @@
                 "url": "https://github.com/calcut/circuitpy_mcu/raw/md5-ota/mcu.py",
                 "md5": "400094bf9e7f22512548c2fc5ca617be",
                 "destination": "/circuitpy_mcu/mcu.py"
+            }
+        ]
+    },
+    "common": {
+        "description": "Common libs for all devices",
+        "ota_files": [
+            {
+                "url": "https://github.com/calcut/circuitpy_mcu/raw/md5-ota/mcu.py",
+                "md5": "400094bf9e7f22512548c2fc5ca617be",
+                "destination": "/circuitpy_mcu/mcu.py"
             },
             {
                 "url": "https://github.com/calcut/circuitpy_mcu/raw/md5-ota/ota_bootloader.py",
