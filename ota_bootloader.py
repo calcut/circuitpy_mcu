@@ -238,37 +238,40 @@ class Bootloader():
             self.display_text(f'{url_list[-2]}', row=2, clear=False)
             self.display_text(f'{url_list[-3]}', row=3, clear=False)
             response = self.requests.get(url)
-            ota_list = response.json()[id]
+            ota_list = response.json()[id]['ota_files']
+            
+            update_indices = []
 
-            update_keys = []
-            for k in ota_list.keys():
-                if k.startswith('ota'):
-                    md5_ref = ota_list[k]['md5']
-                    dest = ota_list[k]['destination']
-                    try:
-                        with open(dest, 'rb') as f:
-                            file = f.read()
-                        md5 = hashlib.md5(file)
-                        if (md5_ref != md5.hexdigest()):
-                            print(f"MD5 mismatch for {dest}, adding to update list")
-                            update_keys.append(k)
-                    except Exception as e:
-                        print(f"Could not open {dest}, adding to update list")
-                        update_keys.append(k)
+            # Check MD5s of existing files
+            for f in ota_list:
+                index = ota_list.index(f)
+                md5_ref = f['md5']
+                dest = f['destination']
+                try:
+                    with open(dest, 'rb') as f:
+                        file = f.read()
+                    md5 = hashlib.md5(file)
+                    if (md5_ref != md5.hexdigest()):
+                        print(f"MD5 mismatch for {dest}, adding to update list")
+                        update_indices.append(index)
+                except Exception as e:
+                    print(f"Could not open {dest}, adding to update list")
+                    update_indices.append(index)
 
-            if update_keys == []:
+            if update_indices == []:
                 print(f"No files need update")
                 self.display_text(f'No files need update', row=0, clear=True)
                 time.sleep(1)
                 self.display_text(f'Starting...', row=0, clear=True)
                 return True
             else:
-                print(f"{len(update_keys)} Files need updating")
+                print(f"{len(update_indices)} Files need updating")
             
             #  Download the files to temporary locations
-            for k in update_keys:
-                url = ota_list[k]['url']
-                dest = ota_list[k]['destination']
+            for i in update_indices:
+                f = ota_list[i]
+                url = f['url']
+                dest = f['destination']
                 dest_temp = dest+'.ota_temp'
                 url_list = url.split('/')
                 self.display_text(f'Downloading:', row=0, clear=True)
@@ -276,13 +279,15 @@ class Bootloader():
                 self.display_text(f'{url_list[-2]}', row=2, clear=False)
                 self.display_text(f'{url_list[-3]}', row=3, clear=False)
                 file = self.requests.get(url).content
+                self.mkdir_parents(dest_temp)
                 with open(dest_temp, 'wb') as f:
                     f.write(file)
 
             # Confirm MD5s match for the newly downloaded files
-            for k in update_keys:
-                md5_ref = ota_list[k]['md5']
-                dest = ota_list[k]['destination']
+            for i in update_indices:
+                f = ota_list[i]
+                md5_ref = f['md5']
+                dest = f['destination']
                 dest_temp = dest+'.ota_temp'
                 with open(dest_temp, 'rb') as f:
                     file = f.read()
@@ -297,9 +302,10 @@ class Bootloader():
                 # exception to reboot normally with original files
 
             # Overwrite the original files with the OTA temp files
-            for k in update_keys:
-                url = ota_list[k]['url']
-                dest = ota_list[k]['destination']
+            for i in update_indices:
+                f = ota_list[i]
+                url = f['url']
+                dest = f['destination']
                 dest_temp = dest+'.ota_temp'
                 with open(dest_temp, 'rb') as f:
                     file = f.read()
