@@ -59,7 +59,7 @@ def reset(exception=None):
 
 class Bootloader():
 
-    def __init__(self, url):
+    def __init__(self):
         enable_watchdog(timeout=120)
 
         i2c = None
@@ -95,7 +95,7 @@ class Bootloader():
             print(f'heartbeat LED error: {e}')
 
         try:
-            self.get_ota_list(url)
+            self.get_ota_list()
             if i2c_power:
                 i2c_power.deinit()
             if i2c:
@@ -214,7 +214,7 @@ class Bootloader():
                     print(f'Trying to mkdir {d}')
                     print(e)
 
-    def get_ota_list(self, url):
+    def get_ota_list(self):
         
         try:
             if not self.writable_check():
@@ -230,6 +230,37 @@ class Bootloader():
             self.display_text('Over-the-Air Update')
             self.display_text(f'id: {id}', row=1, clear=False)
             self.wifi_connect()
+
+            user = secrets['ota_git_user']
+            repo = secrets['ota_git_repo']
+            branch = secrets['ota_git_branch']
+
+            url = f"https://api.github.com/repos/{user}/{repo}/contents/ota_list.json?ref={branch}"
+
+            print('checking for latest OTA date from:')
+            print(f'{url=}')
+            headers = self.requests.head(url).headers
+            etag = headers['etag']
+            modified = headers['last-modified']
+            print(f'{modified=}')
+
+            try:
+                with open('ota_date.txt', 'r') as f:
+                    last_modified = f.read()
+            except:
+                last_modified = None
+
+            if last_modified == modified:
+                print(f'OTA date unchanged at {modified}, skipping update')
+                self.display_text(f'No OTA Update', row=0, clear=True)
+                time.sleep(1)
+                self.display_text(f'Starting...', row=0, clear=True)
+                return True                
+
+            print(f'OTA ETag: {etag}')
+            print(f'OTA date: {modified}')
+
+            url = f"https://raw.githubusercontent.com/{user}/{repo}/{branch}/ota_list.json"
 
             print(f'trying to fetch ota files defined in {url}, with id={id}')
             url_list = url.split('/')
@@ -321,6 +352,9 @@ class Bootloader():
                 os.remove(dest_temp)
 
             self.display_text(f'OTA Success', row=0, clear=True)
+            with open('ota_date.txt', 'w') as f:
+                f.write(modified)
+
             time.sleep(1)
             return True
 
