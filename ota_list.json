@@ -24,7 +24,7 @@
             },
             {
                 "url": "https://github.com/calcut/circuitpy_mcu/raw/md5-ota/ota_bootloader.py",
-                "md5": "e14aafae1b6e5c95c124bca6984fdc90",
+                "md5": "a3545964ef49ed1a98df972178874fad",
                 "destination": "/circuitpy_mcu/ota_bootloader.py"
             },
             {
