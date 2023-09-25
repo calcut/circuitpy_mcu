@@ -239,7 +239,7 @@ class Bootloader():
             self.display_text(f'{url_list[-3]}', row=3, clear=False)
             print(f'Downloading {url}')
             response = self.requests.get(url)
-            ota_list = response.json()[id]['ota_files']+response.json()['common']['ota_files']
+            ota_list = response.json()['common']['ota_files']+response.json()[id]['ota_files']
             
             update_indices = []
 
