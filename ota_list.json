@@ -48,6 +48,31 @@
                 "destination": "/lib/adafruit_requests.py"
             },
             {
+                "url": "https://github.com/adafruit/Adafruit_CircuitPython_Register/raw/1.9.16/adafruit_register/i2c_bit.py",
+                "md5": "a397f4ab063891d5efeee4bf2fe67b6a",
+                "destination": "/lib/adafruit_register/i2c_bit.py"
+            },
+            {
+                "url": "https://github.com/adafruit/Adafruit_CircuitPython_Register/raw/1.9.16/adafruit_register/i2c_bits.py",
+                "md5": "1634e2b257a4b86c620aa133bf5016d6",
+                "destination": "/lib/adafruit_register/i2c_bits.py"
+            },
+            {
+                "url": "https://github.com/adafruit/Adafruit_CircuitPython_Register/raw/1.9.16/adafruit_register/i2c_struct.py",
+                "md5": "26999a00355735cfd0968639ab701afd",
+                "destination": "/lib/adafruit_register/i2c_struct.py"
+            },
+            {
+                "url": "https://github.com/adafruit/Adafruit_CircuitPython_BusDevice/raw/5.1.8/adafruit_bus_device/i2c_device.py",
+                "md5": "009ca8bc8af03fa5c710b46793e8cb0d",
+                "destination": "/lib/adafruit_bus_device/i2c_device.py"
+            },
+            {
+                "url": "https://github.com/adafruit/Adafruit_CircuitPython_BusDevice/raw/5.1.8/adafruit_bus_device/spi_device.py",
+                "md5": "6837b717d097a25287cb9a11b10099f4",
+                "destination": "/lib/adafruit_bus_device/spi_device.py"
+            },
+            {
                 "url": "https://github.com/adafruit/Adafruit_CircuitPython_Logging/raw/5.0.1/adafruit_logging.py",
                 "md5": "1f1a8de0567f230e8ebff243b27dd16b",
                 "destination": "/lib/adafruit_logging.py"
