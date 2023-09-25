@@ -68,8 +68,8 @@
                 "destination": "/lib/adafruit_register/i2c_struct.py"
             },
             {
-                "url": "https://github.com/adafruit/Adafruit_CircuitPython_Register/raw/1.9.16/adafruit_register/i2c_struct_arrary.py",
-                "md5": "c25ac1411429736cd4fda0a890af1818",
+                "url": "https://github.com/adafruit/Adafruit_CircuitPython_Register/raw/1.9.16/adafruit_register/i2c_struct_array.py",
+                "md5": "4b2ffc29f5c86abba934b45626e4e6ac",
                 "destination": "/lib/adafruit_register/i2c_struct_array.py"
             },
             {
