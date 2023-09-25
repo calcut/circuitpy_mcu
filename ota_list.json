@@ -28,6 +28,11 @@
                 "destination": "/circuitpy_mcu/ota_bootloader.py"
             },
             {
+                "url": "https://github.com/calcut/circuitpy_mcu/raw/md5-ota/display.py",
+                "md5": "76a4f081a4670672b79db4549da56555",
+                "destination": "/circuitpy_mcu/display.py"
+            },
+            {
                 "url": "https://github.com/calcut/circuitpy_mcu/raw/md5-ota/DFRobot_PH.py",
                 "md5": "266c9e40a08cbe7f0195d1dd358a7dc5",
                 "destination": "/circuitpy_mcu/DFRobot_PH.py"
