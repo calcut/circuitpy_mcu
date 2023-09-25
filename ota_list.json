@@ -28,14 +28,119 @@
                 "destination": "/circuitpy_mcu/simpletest_notecard.py"
             },
             {
+                "url": "https://github.com/adafruit/Adafruit_CircuitPython_Requests/raw/1.12.11/adafruit_requests.py",
+                "md5": "c498472428353e35a70e7158f1a27203",
+                "destination": "/lib/adafruit_requests.py"
+            },
+            {
+                "url": "https://github.com/adafruit/Adafruit_CircuitPython_Logging/raw/5.0.1/adafruit_logging.py",
+                "md5": "1f1a8de0567f230e8ebff243b27dd16b",
+                "destination": "/lib/adafruit_logging.py"
+            },
+            {
+                "url": "https://github.com/fourstix/Sparkfun_CircuitPython_SerLCD/raw/1.0.4/sparkfun_serlcd.py",
+                "md5": "d68bb0ac5e64e2b105dbeec2acf8b7a6",
+                "destination": "/lib/sparkfun_serlcd.py"
+            },
+            {
+                "url": "https://github.com/adafruit/Adafruit_CircuitPython_MCP9600/raw/1.3.6/adafruit_mcp9600.py",
+                "md5": "f9ec581e9b80715562f6270de34ff8c1",
+                "destination": "/lib/adafruit_mcp9600.py"
+            },
+            {
+                "url": "https://github.com/adafruit/Adafruit_CircuitPython_PCA9685/raw/3.4.6/adafruit_pca9685.py",
+                "md5": "6dda1d388477f633d7138d44cb44fa4b",
+                "destination": "/lib/adafruit_pca9685.py"
+            },
+            {
+                "url": "https://github.com/adafruit/Adafruit_CircuitPython_NeoPixel/raw/6.3.7/neopixel.py",
+                "md5": "213da1947afc57800f79f707a22690dd",
+                "destination": "/lib/neopixel.py"
+            },
+            {
+                "url": "https://github.com/adafruit/Adafruit_CircuitPython_Pixelbuf/raw/1.1.8/adafruit_pixelbuf.py",
+                "md5": "510ec94d1467df2834aace6c8d816b91",
+                "destination": "/lib/adafruit_pixelbuf.py"
+            },
+            {
                 "url": "https://github.com/adafruit/Adafruit_CircuitPython_Motor/raw/3.4.0/adafruit_motor/motor.py",
                 "md5": "ed40e8e2c2cbcbb48783acd1656b20b4",
                 "destination": "/lib/adafruit_motor/motor.py"
             },
             {
-                "url": "https://github.com/adafruit/Adafruit_CircuitPython_MotorKit/raw/1.6.6/adafruit_motorkit.py",
-                "md5": "97aea4810b3422e53443740c73466f63",
+                "url": "https://github.com/adafruit/Adafruit_CircuitPython_MotorKit/raw/1.6.11/adafruit_motorkit.py",
+                "md5": "b4602bed697631a0687022fe0a18a36b",
                 "destination": "/lib/adafruit_motorkit.py"
+            },
+            {
+                "url": "https://github.com/adafruit/Adafruit_CircuitPython_hashlib/raw/1.4.13/adafruit_hashlib/__init__.py",
+                "md5": "425b1dece9435244a96a8af0d756efbd",
+                "destination": "/lib/adafruit_hashlib/__init__.py"
+            },
+            {
+                "url": "https://github.com/adafruit/Adafruit_CircuitPython_hashlib/raw/1.4.13/adafruit_hashlib/_md5.py",
+                "md5": "aaa5ed40c8a4f551b25225e1b7ad6e7b",
+                "destination": "/lib/adafruit_hashlib/_md5.py"
+            },
+            {
+                "url": "https://github.com/adafruit/Adafruit_CircuitPython_hashlib/raw/1.4.13/adafruit_hashlib/_sha1.py",
+                "md5": "0e9f6a9e4930d1e3f63ae60a699ce36e",
+                "destination": "/lib/adafruit_hashlib/_sha1.py"
+            },
+            {
+                "url": "https://github.com/adafruit/Adafruit_CircuitPython_hashlib/raw/1.4.13/adafruit_hashlib/_sha224.py",
+                "md5": "e67aa2771fda3a60c89524451fb00235",
+                "destination": "/lib/adafruit_hashlib/_sha224.py"
+            },
+            {
+                "url": "https://github.com/adafruit/Adafruit_CircuitPython_hashlib/raw/1.4.13/adafruit_hashlib/_sha256.py",
+                "md5": "7b57a5937708916a3e8e80ff568266f4",
+                "destination": "/lib/adafruit_hashlib/_sha256.py"
+            },
+            {
+                "url": "https://github.com/adafruit/Adafruit_CircuitPython_hashlib/raw/1.4.13/adafruit_hashlib/_sha384.py",
+                "md5": "6d02146983430c73505e6e2dcfbf112c",
+                "destination": "/lib/adafruit_hashlib/_sha384.py"
+            },
+            {
+                "url": "https://github.com/adafruit/Adafruit_CircuitPython_hashlib/raw/1.4.13/adafruit_hashlib/_sha512.py",
+                "md5": "fa292827cee3bbec181b4bdf7d6abf43",
+                "destination": "/lib/adafruit_hashlib/_sha512.py"
+            },
+            {
+                "url": "https://github.com/blues/note-python/raw/v1.4.4/notecard/card.py",
+                "md5": "14558b85f3f6de16cfb07079b8380af2",
+                "destination": "/lib/notecard/card.py"
+            },
+            {
+                "url": "https://github.com/blues/note-python/raw/v1.4.4/notecard/env.py",
+                "md5": "956193187afa5be133c72db77a801037",
+                "destination": "/lib/notecard/env.py"
+            },
+            {
+                "url": "https://github.com/blues/note-python/raw/v1.4.4/notecard/file.py",
+                "md5": "98fdc38d12f0a1b06fa5254dafa64531",
+                "destination": "/lib/notecard/file.py"
+            },
+            {
+                "url": "https://github.com/blues/note-python/raw/v1.4.4/notecard/hub.py",
+                "md5": "a5d1f33a033419e3c83a4fb11f3245a0",
+                "destination": "/lib/notecard/hub.py"
+            },
+            {
+                "url": "https://github.com/blues/note-python/raw/v1.4.4/notecard/note.py",
+                "md5": "2324d3206a839db4eb8efdcfb93952e6",
+                "destination": "/lib/notecard/note.py"
+            },
+            {
+                "url": "https://github.com/blues/note-python/raw/v1.4.4/notecard/notecard.py",
+                "md5": "8762d65eee085c162b24ee950b8bc8e6",
+                "destination": "/lib/notecard/notecard.py"
+            },
+            {
+                "url": "https://github.com/blues/note-python/raw/v1.4.4/notecard/validators.py",
+                "md5": "491afd1a371fa9fc81860c74e02a1337",
+                "destination": "/lib/notecard/validators.py"
             }
         ]
     }
