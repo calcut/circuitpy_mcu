@@ -356,9 +356,6 @@ class Bootloader():
                 os.remove(dest_temp)
 
             self.display_text(f'OTA Success', row=0, clear=True)
-            with open('ota_date.txt', 'w') as f:
-                f.write(modified)
-
             time.sleep(1)
             return True
 
