@@ -93,6 +93,11 @@
                 "destination": "/lib/adafruit_ads1x15/ads1115.py"
             },
             {
+                "url": "https://github.com/adafruit/Adafruit_CircuitPython_ADS1x15/raw/2.2.21/adafruit_ads1x15/ads11x5.py",
+                "md5": "ce4984e5842ec0373a864e6c6ba4033d",
+                "destination": "/lib/adafruit_ads1x15/ads11x5.py"
+            },
+            {
                 "url": "https://github.com/adafruit/Adafruit_CircuitPython_MCP9600/raw/1.3.6/adafruit_mcp9600.py",
                 "md5": "f9ec581e9b80715562f6270de34ff8c1",
                 "destination": "/lib/adafruit_mcp9600.py"
