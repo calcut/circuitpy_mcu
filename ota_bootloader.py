@@ -270,6 +270,7 @@ class Bootloader():
             
             #  Download the files to temporary locations
             for i in update_indices:
+                microcontroller.watchdog.feed()
                 f = ota_list[i]
                 url = f['url']
                 dest = f['destination']
@@ -287,6 +288,7 @@ class Bootloader():
 
             # Confirm MD5s match for the newly downloaded files
             for i in update_indices:
+                microcontroller.watchdog.feed()
                 f = ota_list[i]
                 md5_ref = f['md5']
                 dest = f['destination']
@@ -305,6 +307,7 @@ class Bootloader():
 
             # Overwrite the original files with the OTA temp files
             for i in update_indices:
+                microcontroller.watchdog.feed()
                 f = ota_list[i]
                 url = f['url']
                 dest = f['destination']
