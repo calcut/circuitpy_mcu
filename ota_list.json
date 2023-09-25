@@ -68,6 +68,11 @@
                 "destination": "/lib/adafruit_register/i2c_struct.py"
             },
             {
+                "url": "https://github.com/adafruit/Adafruit_CircuitPython_Register/raw/1.9.16/adafruit_register/i2c_struct_arrary.py",
+                "md5": "c25ac1411429736cd4fda0a890af1818",
+                "destination": "/lib/adafruit_register/i2c_struct_array.py"
+            },
+            {
                 "url": "https://github.com/adafruit/Adafruit_CircuitPython_BusDevice/raw/5.1.8/adafruit_bus_device/i2c_device.py",
                 "md5": "009ca8bc8af03fa5c710b46793e8cb0d",
                 "destination": "/lib/adafruit_bus_device/i2c_device.py"
