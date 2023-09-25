@@ -235,30 +235,32 @@ class Bootloader():
             repo = secrets['ota_git_repo']
             branch = secrets['ota_git_branch']
 
-            url = f"https://api.github.com/repos/{user}/{repo}/contents/ota_list.json?ref={branch}"
 
-            print('checking for latest OTA date from:')
-            print(f'{url=}')
-            headers = self.requests.head(url).headers
-            etag = headers['etag']
-            modified = headers['last-modified']
-            print(f'{modified=}')
+            # Don't do this, it may prevent an update if some of files have been corrupted
+            # url = f"https://api.github.com/repos/{user}/{repo}/contents/ota_list.json?ref={branch}"
 
-            try:
-                with open('ota_date.txt', 'r') as f:
-                    last_modified = f.read()
-            except:
-                last_modified = None
+            # print('checking for latest OTA date from:')
+            # print(f'{url=}')
+            # headers = self.requests.head(url).headers
+            # etag = headers['etag']
+            # modified = headers['last-modified']
+            # print(f'{modified=}')
 
-            if last_modified == modified:
-                print(f'OTA date unchanged at {modified}, skipping update')
-                self.display_text(f'No OTA Update', row=0, clear=True)
-                time.sleep(1)
-                self.display_text(f'Starting...', row=0, clear=True)
-                return True                
+            # try:
+            #     with open('ota_date.txt', 'r') as f:
+            #         last_modified = f.read()
+            # except:
+            #     last_modified = None
 
-            print(f'OTA ETag: {etag}')
-            print(f'OTA date: {modified}')
+            # if last_modified == modified:
+            #     print(f'OTA date unchanged at {modified}, skipping update')
+            #     self.display_text(f'No OTA Update', row=0, clear=True)
+            #     time.sleep(1)
+            #     self.display_text(f'Starting...', row=0, clear=True)
+            #     return True                
+
+            # print(f'OTA ETag: {etag}')
+            # print(f'OTA date: {modified}')
 
             url = f"https://raw.githubusercontent.com/{user}/{repo}/{branch}/ota_list.json"
 
