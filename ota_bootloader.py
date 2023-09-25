@@ -286,6 +286,8 @@ class Bootloader():
                     if (md5_ref != md5.hexdigest()):
                         print(f"MD5 mismatch for {dest}, adding to update list")
                         update_indices.append(index)
+                    else:
+                        print(f"MD5 match for {dest}, no update needed")
                 except Exception as e:
                     print(f"Could not open {dest}, adding to update list")
                     update_indices.append(index)
