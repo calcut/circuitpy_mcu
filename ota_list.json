@@ -3,9 +3,14 @@
         "description": "Test System",
         "ota_files": [
             {
-                "url": "https://github.com/calcut/circuitpy_mcu/raw/md5-ota/mcu.py",
-                "md5": "400094bf9e7f22512548c2fc5ca617be",
-                "destination": "/circuitpy_mcu/mcu.py"
+                "url": "https://github.com/calcut/circuitpy_septic_tank/raw/extra-ch4-input/septic_tank.py",
+                "md5": "8d30dfd0b6c9686ba31b05ff8d20a54d",
+                "destination": "/circuitpy_septic_tank/septic_tank.py"
+            },
+            {
+                "url": "https://github.com/calcut/circuitpy_septic_tank/raw/extra-ch4-input/gascard.py",
+                "md5": "fb8da6918864b7f5158328b05689f31c",
+                "destination": "/circuitpy_septic_tank/gascard.py"
             }
         ]
     },
@@ -51,6 +56,11 @@
                 "url": "https://github.com/fourstix/Sparkfun_CircuitPython_SerLCD/raw/1.0.4/sparkfun_serlcd.py",
                 "md5": "d68bb0ac5e64e2b105dbeec2acf8b7a6",
                 "destination": "/lib/sparkfun_serlcd.py"
+            },
+            {
+                "url": "https://github.com/adafruit/Adafruit_CircuitPython_ADS1x15/raw/2.2.21/adafruit_ads1x15/ads1115.py",
+                "md5": "c9f2e96d95a0ef0e221456e6cd22b1fd",
+                "destination": "/lib/adafruit_ads1x15/ads1115.py.py"
             },
             {
                 "url": "https://github.com/adafruit/Adafruit_CircuitPython_MCP9600/raw/1.3.6/adafruit_mcp9600.py",
