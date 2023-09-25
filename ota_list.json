@@ -108,38 +108,38 @@
                 "destination": "/lib/adafruit_hashlib/_sha512.py"
             },
             {
-                "url": "https://github.com/blues/note-python/raw/v1.4.4/notecard/card.py",
+                "url": "https://github.com/blues/note-python/raw/v1.4.6/notecard/card.py",
                 "md5": "14558b85f3f6de16cfb07079b8380af2",
                 "destination": "/lib/notecard/card.py"
             },
             {
-                "url": "https://github.com/blues/note-python/raw/v1.4.4/notecard/env.py",
+                "url": "https://github.com/blues/note-python/raw/v1.4.6/notecard/env.py",
                 "md5": "956193187afa5be133c72db77a801037",
                 "destination": "/lib/notecard/env.py"
             },
             {
-                "url": "https://github.com/blues/note-python/raw/v1.4.4/notecard/file.py",
+                "url": "https://github.com/blues/note-python/raw/v1.4.6/notecard/file.py",
                 "md5": "98fdc38d12f0a1b06fa5254dafa64531",
                 "destination": "/lib/notecard/file.py"
             },
             {
-                "url": "https://github.com/blues/note-python/raw/v1.4.4/notecard/hub.py",
+                "url": "https://github.com/blues/note-python/raw/v1.4.6/notecard/hub.py",
                 "md5": "a5d1f33a033419e3c83a4fb11f3245a0",
                 "destination": "/lib/notecard/hub.py"
             },
             {
-                "url": "https://github.com/blues/note-python/raw/v1.4.4/notecard/note.py",
+                "url": "https://github.com/blues/note-python/raw/v1.4.6/notecard/note.py",
                 "md5": "2324d3206a839db4eb8efdcfb93952e6",
                 "destination": "/lib/notecard/note.py"
             },
             {
-                "url": "https://github.com/blues/note-python/raw/v1.4.4/notecard/notecard.py",
-                "md5": "8762d65eee085c162b24ee950b8bc8e6",
+                "url": "https://github.com/blues/note-python/raw/v1.4.6/notecard/notecard.py",
+                "md5": "31ab09be34a84512f06a3c0cdde51344",
                 "destination": "/lib/notecard/notecard.py"
             },
             {
-                "url": "https://github.com/blues/note-python/raw/v1.4.4/notecard/validators.py",
-                "md5": "491afd1a371fa9fc81860c74e02a1337",
+                "url": "https://github.com/blues/note-python/raw/v1.4.6/notecard/validators.py",
+                "md5": "4489666312d37203a1a75eee33d35b14",
                 "destination": "/lib/notecard/validators.py"
             }
         ]
