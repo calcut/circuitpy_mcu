@@ -24,7 +24,7 @@
             },
             {
                 "url": "https://github.com/calcut/circuitpy_mcu/raw/md5-ota/ota_bootloader.py",
-                "md5": "9cd7b9fa2acb4415fd5c68dd0ccf90fa",
+                "md5": "e14aafae1b6e5c95c124bca6984fdc90",
                 "destination": "/circuitpy_mcu/ota_bootloader.py"
             },
             {
@@ -94,7 +94,7 @@
             },
             {
                 "url": "https://github.com/adafruit/Adafruit_CircuitPython_ADS1x15/raw/2.2.21/adafruit_ads1x15/ads11x5.py",
-                "md5": "ce4984e5842ec0373a864e6c6ba4033d",
+                "md5": "4dbbe0f4f9e641f12dd91a67172f0881",
                 "destination": "/lib/adafruit_ads1x15/ads11x5.py"
             },
             {
