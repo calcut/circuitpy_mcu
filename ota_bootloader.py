@@ -290,6 +290,8 @@ class Bootloader():
                         update_indices.append(index)
                     else:
                         print(f"MD5 match for {dest}, no update needed")
+                        self.display_text(f'{dest[-20:]}', row=0, clear=True)
+                        self.display_text(f'No update needed', row=1, clear=True)
                 except Exception as e:
                     print(f"Could not open {dest}, adding to update list")
                     update_indices.append(index)
