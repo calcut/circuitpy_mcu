@@ -173,37 +173,52 @@
                 "destination": "/lib/adafruit_hashlib/_sha512.py"
             },
             {
-                "url": "https://github.com/blues/note-python/raw/v1.4.6/notecard/card.py",
-                "md5": "14558b85f3f6de16cfb07079b8380af2",
+                "url": "https://github.com/blues/note-python/raw/63778b7/notecard/card.py",
+                "md5": "595b29a02d510446b80262422b6f4bc5",
                 "destination": "/lib/notecard/card.py"
             },
             {
-                "url": "https://github.com/blues/note-python/raw/v1.4.6/notecard/env.py",
-                "md5": "956193187afa5be133c72db77a801037",
+                "url": "https://github.com/blues/note-python/raw/63778b7/notecard/env.py",
+                "md5": "e818a3ced93c2d9891261cf2b5c9d8b8",
                 "destination": "/lib/notecard/env.py"
             },
             {
-                "url": "https://github.com/blues/note-python/raw/v1.4.6/notecard/file.py",
-                "md5": "98fdc38d12f0a1b06fa5254dafa64531",
+                "url": "https://github.com/blues/note-python/raw/63778b7/notecard/file.py",
+                "md5": "fff816745394c58e3586c6ac02b0e294",
                 "destination": "/lib/notecard/file.py"
             },
             {
-                "url": "https://github.com/blues/note-python/raw/v1.4.6/notecard/hub.py",
-                "md5": "a5d1f33a033419e3c83a4fb11f3245a0",
+                "url": "https://github.com/blues/note-python/raw/63778b7/notecard/hub.py",
+                "md5": "89124a7166cfd3b9beeb0b50bcd41ac1",
                 "destination": "/lib/notecard/hub.py"
             },
             {
-                "url": "https://github.com/blues/note-python/raw/v1.4.6/notecard/note.py",
-                "md5": "2324d3206a839db4eb8efdcfb93952e6",
+                "url": "https://github.com/blues/note-python/raw/63778b7/notecard/note.py",
+                "md5": "3baf6570c49f171ca4558473626017d4",
                 "destination": "/lib/notecard/note.py"
             },
             {
-                "url": "https://github.com/blues/note-python/raw/v1.4.6/notecard/notecard.py",
-                "md5": "31ab09be34a84512f06a3c0cdde51344",
+                "url": "https://github.com/blues/note-python/raw/63778b7/notecard/notecard.py",
+                "md5": "c4762ed96154fd9276018866a479715d",
                 "destination": "/lib/notecard/notecard.py"
             },
             {
-                "url": "https://github.com/blues/note-python/raw/v1.4.6/notecard/validators.py",
+                "url": "https://github.com/blues/note-python/raw/63778b7/notecard/transaction_manager.py",
+                "md5": "63e3546bb71b2a78920fd8478912c200",
+                "destination": "/lib/notecard/transaction_manager.py"
+            },
+            {
+                "url": "https://github.com/blues/note-python/raw/63778b7/notecard/timeout.py",
+                "md5": "370a866e66809babb79df73b29b0cc52",
+                "destination": "/lib/notecard/timeout.py"
+            },
+            {
+                "url": "https://github.com/blues/note-python/raw/63778b7/notecard/gpio.py",
+                "md5": "2ab0c84405fb96c8b86bbc352ddebbb9",
+                "destination": "/lib/notecard/gpio.py"
+            },
+            {
+                "url": "https://github.com/blues/note-python/raw/63778b7/notecard/validators.py",
                 "md5": "4489666312d37203a1a75eee33d35b14",
                 "destination": "/lib/notecard/validators.py"
             }
